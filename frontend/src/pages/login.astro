@@ -1,0 +1,11 @@
+---
+import LoginForm from '../components/Login.jsx';
+import Layout from '../layouts/Layout.astro';
+import '../styles/global.css';
+---
+
+<Layout title="Login - VinFast Dashboard">
+	<div class="bg-gray-900 min-h-screen">
+		<LoginForm client:load />
+	</div>
+</Layout>

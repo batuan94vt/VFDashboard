@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+.DS_Store
+logs/
+*.log
+coverage/
+.vscode/
+
+# Project specific
+backup/
+backend/crash.log
+frontend/frontend_debug.log
+backend/sessions.json
+lint_output.*
