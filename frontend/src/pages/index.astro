@@ -10,28 +10,11 @@ import '../styles/global.css';
 
 // Server-Side Logic
 import Layout from '../layouts/Layout.astro';
-const token = Astro.cookies.get('access_token')?.value;
 
-if (!token) {
-    return Astro.redirect('/login');
-}
-
-// Fetch initial vehicle list to get VIN
-let vin = '';
-try {
-    const response = await fetch(ENDPOINTS.VEHICLES, {
-        headers: { Cookie: `access_token=${token}` }
-    });
-    
-    if (response.ok) {
-        const data = await response.json();
-        if (data.data && data.data.length > 0) {
-            vin = data.data[0].vinCode;
-        }
-    }
-} catch (e) {
-    console.error("Failed to fetch initial vehicle data", e);
-}
+// Note: In a cross-subdomain deployment like Render, the frontend server
+// cannot access cookies set by the backend domain. 
+// Authentication is handled client-side by DashboardController.
+const vin = ''; 
 ---
 
 <Layout title="VinFast Dashboard">

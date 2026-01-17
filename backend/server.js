@@ -59,7 +59,7 @@ fastify.post(
         path: "/",
         httpOnly: true,
         secure: process.env.NODE_ENV === "production", // Set true in Prod
-        sameSite: "lax",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 7776000, // 90 days (Long sessions)
       };
 
@@ -109,7 +109,7 @@ const syncCookies = (reply, api) => {
       path: "/",
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 86400,
     });
   }
@@ -118,7 +118,7 @@ const syncCookies = (reply, api) => {
       path: "/",
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7776000,
     });
   }
