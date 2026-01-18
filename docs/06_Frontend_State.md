@@ -23,7 +23,7 @@ These fields represent the **currently selected** vehicle:
 
 ### 1.3 Location & Environment
 *   `latitude`, `longitude`, `heading`: Current GPS position.
-*   `location_address`: Reverse-geocoded address (added by Backend).
+*   `location_address`: Reverse-geocoded address (fetched via Nominatim Client-side).
 *   `outside_temp`: From Telemetry or Open-Meteo.
 *   `inside_temp`: Cabin temperature.
 *   `ignition_status`: On/Off status.
@@ -47,8 +47,9 @@ These fields represent the **currently selected** vehicle:
 
 ### 2.1 Initialization
 1.  `DashboardController.jsx` mounts and calls `fetchVehicles()`.
-2.  `fetchVehicles()` hits `/api/vehicles`, retrieves the list, and populates `vehicles` array in the store.
-3.  It automatically calls `switchVehicle()` for the first VIN in the list.
+2.  `fetchVehicles()` calls `api.getVehicles()` (Service).
+3.  Static vehicle data is retrieved and populated in `vehicles` array.
+4.  It automatically calls `switchVehicle()` for the first VIN in the list.
 
 ### 2.2 Vehicle Switching (`switchVehicle(vin)`)
 1.  User clicks arrow/dot in `DigitalTwin` component.
@@ -58,14 +59,14 @@ These fields represent the **currently selected** vehicle:
 5.  It triggers an immediate `fetchTelemetry(vin)` to get fresh data.
 
 ### 2.3 Telemetry Polling
-1.  `fetchTelemetry(vin)` hits `/api/telemetry/{vin}` (BFF).
-2.  The BFF retrieves data from VinFast + External Services (Weather/Geo).
-3.  `updateVehicleData(data)` is called.
+1.  `fetchTelemetry(vin)` calls `api.getTelemetry(vin)`.
+2.  The Service calls the Proxy (`/api/proxy/...`) + External Services (Weather/Geo).
+3.  `updateVehicleData(data)` is called with the normalized result.
 4.  **Crucially**, `updateVehicleData` updates **BOTH** the `vehicleCache[vin]` AND (if the VIN matches active) the `vehicleStore`.
 5.  **Reactivity**: UI components re-render automatically.
 
 ## 3. Auth Store
-Managed internally or via simple atoms/cookies (handled by `DashboardController` redirect logic on 401).
+Managed via `authStore` and `api` service (localStorage).
 
 ## 4. Best Practices
 *   **Direct Access**: Use `vehicleStore.get()` for reading state inside functions (like `switchVehicle`).

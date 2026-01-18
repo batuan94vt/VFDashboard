@@ -1,15 +1,4 @@
 services:
-  backend:
-    build: ./backend
-    ports:
-      - "3000:3000"
-    environment:
-      - PORT=3000
-      - VF_REGION=vn
-      - NODE_ENV=production
-    networks:
-      - vfdashboard-net
-
   frontend:
     build: ./frontend
     ports:
@@ -17,10 +6,11 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=4321
-      # Point to backend service name in internal network
-      - PUBLIC_API_URL=http://backend:3000
-    depends_on:
-      - backend
+      - PUBLIC_API_URL=http://localhost:4321
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: unless-stopped
     networks:
       - vfdashboard-net
 

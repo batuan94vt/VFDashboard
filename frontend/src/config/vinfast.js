@@ -1,29 +1,32 @@
-module.exports = {
-  DEFAULT_REGION: "vn",
-  REGIONS: {
+import staticAliasMap from './static_alias_map.json';
+
+export const DEFAULT_REGION = "vn";
+
+export const REGIONS = {
     us: {
-      name: "United States",
-      auth0_domain: "vinfast-us-prod.us.auth0.com",
-      auth0_client_id: "xhGY7XKDFSk1Q22rxidvwujfz0EPAbUP",
-      auth0_audience: "https://vinfast-us-prod.us.auth0.com/api/v2/",
-      api_base: "https://mobile.connected-car.vinfastauto.us",
+        name: "United States",
+        auth0_domain: "vinfast-us-prod.us.auth0.com",
+        auth0_client_id: "xhGY7XKDFSk1Q22rxidvwujfz0EPAbUP",
+        auth0_audience: "https://vinfast-us-prod.us.auth0.com/api/v2/",
+        api_base: "https://mobile.connected-car.vinfastauto.us",
     },
     eu: {
-      name: "Europe",
-      auth0_domain: "vinfast-eu-prod.eu.auth0.com",
-      auth0_client_id: "dxxtNkkhsPWW78x6s1BWQlmuCfLQrkze",
-      auth0_audience: "https://vinfast-eu-prod.eu.auth0.com/api/v2/",
-      api_base: "https://mobile.connected-car.vinfastauto.eu",
+        name: "Europe",
+        auth0_domain: "vinfast-eu-prod.eu.auth0.com",
+        auth0_client_id: "dxxtNkkhsPWW78x6s1BWQlmuCfLQrkze",
+        auth0_audience: "https://vinfast-eu-prod.eu.auth0.com/api/v2/",
+        api_base: "https://mobile.connected-car.vinfastauto.eu",
     },
     vn: {
-      name: "Vietnam",
-      auth0_domain: "vin3s.au.auth0.com",
-      auth0_client_id: "jE5xt50qC7oIh1f32qMzA6hGznIU5mgH",
-      auth0_audience: "https://vin3s.au.auth0.com/api/v2/",
-      api_base: "https://mobile.connected-car.vinfast.vn",
+        name: "Vietnam",
+        auth0_domain: "vin3s.au.auth0.com",
+        auth0_client_id: "jE5xt50qC7oIh1f32qMzA6hGznIU5mgH",
+        auth0_audience: "https://vin3s.au.auth0.com/api/v2/",
+        api_base: "https://mobile.connected-car.vinfast.vn",
     },
-  },
-  API_HEADERS: {
+};
+
+export const API_HEADERS = {
     "Content-Type": "application/json",
     Accept: "application/json",
     "x-service-name": "CAPP",
@@ -34,8 +37,9 @@ module.exports = {
     "x-device-locale": "en-US",
     "x-timezone": "Asia/Ho_Chi_Minh",
     "x-device-identifier": "vfdashboard-community-edition",
-  },
-  CORE_TELEMETRY_ALIASES: [
+};
+
+export const CORE_TELEMETRY_ALIASES = [
     "VEHICLE_STATUS_HV_BATTERY_SOC",
     "VEHICLE_STATUS_LV_BATTERY_SOC",
     "VEHICLE_STATUS_REMAINING_DISTANCE",
@@ -73,7 +77,7 @@ module.exports = {
 
     "VEHICLE_STATUS_LOCK_STATUS",
     "CLIMATE_INFORMATION_PASSENGER_TEMPERATURE",
-    "CLIMATE_INFORMATION_FAN_SPEED",
+    "CLIMATE_INFORMATION_DRIVER_AIR_BLOW_LEVEL", // Was CLIMATE_INFORMATION_FAN_SPEED
     "LOCATION_LATITUDE",
     "LOCATION_LONGITUDE",
     "VEHICLE_BEARING_DEGREE",
@@ -87,8 +91,9 @@ module.exports = {
     "VERSION_INFO_TBOX_SOFTWARE_VERSION",
     "BMS_STATUS_THERMAL_RUNAWAY_WARNING",
     "CCARSERVICE_OBJECT_BOOKING_SERVICE_STATUS",
-  ],
-  FALLBACK_TELEMETRY_RESOURCES: [
+];
+
+export const FALLBACK_TELEMETRY_RESOURCES = [
     "/34196/0/0",
     "/34196/0/1",
     "/34197/0/0",
@@ -99,6 +104,6 @@ module.exports = {
     "/34200/0/1",
     "/34201/0/0",
     "/34202/0/0",
-  ],
-  STATIC_ALIAS_MAP: require("./static_alias_map.json"),
-};
+];
+
+export const STATIC_ALIAS_MAP_EXPORT = staticAliasMap;

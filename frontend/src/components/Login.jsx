@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ENDPOINTS } from "../config/api";
+import { api } from "../services/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -15,25 +15,12 @@ export default function Login() {
     setError("");
 
     try {
-      const res = await fetch(ENDPOINTS.LOGIN, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ email, password, region }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Login failed");
-      }
+      await api.authenticate(email, password, region);
 
       // Successful login
       window.location.href = "/";
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -192,11 +179,10 @@ export default function Login() {
                               setRegion(opt.val);
                               setRegionDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
-                              region === opt.val
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-bold transition-colors ${region === opt.val
                                 ? "bg-blue-50 text-blue-600"
                                 : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                            }`}
+                              }`}
                           >
                             {opt.label}
                           </button>

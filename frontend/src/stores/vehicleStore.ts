@@ -1,5 +1,5 @@
 import { map } from "nanostores";
-import { ENDPOINTS } from "../config/api";
+import { api } from "../services/api";
 import { DEFAULT_LOCATION } from "../constants/vehicle";
 
 export interface VehicleState {
@@ -346,26 +346,9 @@ export const fetchTelemetry = async (vin: string) => {
   vehicleStore.setKey("isRefreshing", true);
 
   try {
-    const res = await fetch(ENDPOINTS.TELEMETRY(vin), {
-      credentials: "include",
-    });
-
-    if (res.status === 401) {
-      console.warn("Telemetry 401 Unauthorized - Redirecting to Login");
-      if (typeof window !== "undefined") window.location.href = "/login";
-      return;
-    }
-
-    if (res.ok) {
-      const json = await res.json();
-      if (json.data) {
-        // Enforce VIN in the update payload to ensure correct routing
-        updateVehicleData({ ...json.data, vin });
-      } else {
-        console.warn("Telemetry response ok but no data field", json);
-      }
-    } else {
-      console.error("Telemetry fetch failed", res.status, res.statusText);
+    const data = await api.getTelemetry(vin);
+    if (data) {
+      updateVehicleData({ ...data, vin });
     }
   } catch (e) {
     console.error("Telemetry Refresh Error", e);
@@ -379,29 +362,14 @@ export const fetchTelemetry = async (vin: string) => {
 
 export const fetchUser = async () => {
   try {
-    const res = await fetch(ENDPOINTS.USER, {
-      credentials: "include",
-    });
+    const data = await api.getUserProfile();
+    if (data) {
+      vehicleStore.setKey("user_name", data.name || data.sub);
 
-    if (res.status === 401) {
-      console.warn("User Fetch 401 Unauthorized - Redirecting to Login");
-      if (typeof window !== "undefined") window.location.href = "/login";
-      return;
-    }
-
-    if (res.ok) {
-      const json = await res.json();
-      if (json.data) {
-        vehicleStore.setKey("user_name", json.data.name || json.data.sub);
-
-        // Only set avatar from Auth0 if we don't have a specific VinFast profile image
-        const current = vehicleStore.get();
-        if (!current.vinfast_profile_image) {
-          // Filter out Gravatar if desired, or let Header handle it.
-          // But user specifically said "Currently there is one but it is being overwritten".
-          // So we simply respect the VinFast one if it exists.
-          vehicleStore.setKey("user_avatar", json.data.picture);
-        }
+      // Only set avatar from Auth0 if we don't have a specific VinFast profile image
+      const current = vehicleStore.get();
+      if (!current.vinfast_profile_image) {
+        vehicleStore.setKey("user_avatar", data.picture);
       }
     }
   } catch (e) {
@@ -411,54 +379,39 @@ export const fetchUser = async () => {
 
 export const fetchVehicles = async (): Promise<string | null> => {
   try {
-    const res = await fetch(ENDPOINTS.VEHICLES, {
-      credentials: "include",
-    });
+    const vehicles = await api.getVehicles();
 
-    if (res.status === 401) {
-      console.warn("Vehicles Fetch 401 Unauthorized - Redirecting to Login");
-      if (typeof window !== "undefined") window.location.href = "/login";
-      return null;
-    }
+    if (vehicles && vehicles.length > 0) {
+      // Deduplicate vehicles based on vinCode
+      const uniqueVehicles = Array.from(
+        new Map(vehicles.map((v: any) => [v.vinCode, v])).values(),
+      );
 
-    if (res.ok) {
-      const json = await res.json();
-      // console.log("DEBUG: fetchVehicles response:", json);
-      if (json.data && json.data.length > 0) {
-        // Deduplicate vehicles based on vinCode
-        const uniqueVehicles = Array.from(
-          new Map(json.data.map((v: any) => [v.vinCode, v])).values(),
-        );
+      // Store all vehicles
+      vehicleStore.setKey("vehicles", uniqueVehicles);
 
-        // Store all vehicles
-        vehicleStore.setKey("vehicles", uniqueVehicles);
+      // Populate Cache with Initial Info for all vehicles
+      const cache: Record<string, Partial<VehicleState>> = {};
+      uniqueVehicles.forEach((v: any) => {
+        cache[v.vinCode] = {
+          marketingName: v.marketingName,
+          vehicleVariant: v.vehicleVariant,
+          color: v.exteriorColor || v.color,
+          yearOfProduct: v.yearOfProduct,
+          customizedVehicleName: v.customizedVehicleName || v.vehicleName,
+          userVehicleType: v.userVehicleType,
+          vehicleImage: v.vehicleImage,
+          warrantyExpirationDate: v.warrantyExpirationDate,
+          warrantyMileage: v.warrantyMileage,
+        };
+      });
+      vehicleStore.setKey("vehicleCache", cache);
 
-        // Populate Cache with Initial Info for all vehicles
-        const cache: Record<string, Partial<VehicleState>> = {};
-        uniqueVehicles.forEach((v: any) => {
-          cache[v.vinCode] = {
-            marketingName: v.marketingName,
-            vehicleVariant: v.vehicleVariant,
-            color: v.exteriorColor || v.color,
-            yearOfProduct: v.yearOfProduct,
-            customizedVehicleName: v.customizedVehicleName || v.vehicleName,
-            userVehicleType: v.userVehicleType,
-            vehicleImage: v.vehicleImage,
-            warrantyExpirationDate: v.warrantyExpirationDate,
-            warrantyMileage: v.warrantyMileage,
-          };
-        });
-        vehicleStore.setKey("vehicleCache", cache);
+      // Automatically switch to the first vehicle
+      const firstVin = vehicles[0].vinCode;
+      await switchVehicle(firstVin);
 
-        // Automatically switch to the first vehicle
-        const firstVin = json.data[0].vinCode;
-        // Optimization: Manually set first state to avoid double-render if switchVehicle calls API too early?
-        // Actually, switchVehicle is robust. Let's use it.
-        // Waiting for it might be needed if caller expects return.
-        await switchVehicle(firstVin);
-
-        return firstVin;
-      }
+      return firstVin;
     }
     return null;
   } catch (e) {

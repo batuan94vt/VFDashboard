@@ -22,8 +22,8 @@ Our goal is to create a UI that matches the premium quality of the car itself—
 *   **Responsive Design**: A "Bento Grid" layout that adapts seamlessly from Desktop to Mobile.
 
 ## 🛠 Tech Stack
-*   **Frontend**: React (Vite/Astro), Tailwind CSS, Nanostores.
-*   **Backend**: Node.js, Fastify (BFF Pattern).
+*   **Core**: React (Vite/Astro), Tailwind CSS, Nanostores.
+*   **API**: Serverless Proxy (Astro SSR) for CORS & Rate Limiting.
 *   **Integration**: Official/Reverse-Engineered VinFast API.
 
 ## 🚀 Quick Start
@@ -40,15 +40,7 @@ You can get the whole system running in minutes.
     cd VFDashboard
     ```
 
-2.  **Start the Backend (API Service)**:
-    ```bash
-    cd backend
-    npm install
-    npm start
-    ```
-    *Server will start on `http://localhost:3000`*
-
-3.  **Start the Frontend (Dashboard)**:
+2.  **Start the Dashboard**:
     ```bash
     cd frontend
     npm install
@@ -56,7 +48,7 @@ You can get the whole system running in minutes.
     ```
     *Dashboard will open at `http://localhost:4321`*
 
-## ⚠️ Disclaimer
+## ⚠ Disclaimer
 **This software is not affiliated with, endorsed by, or connected to VinFast Auto or its subsidiaries.**  
 It is an unofficial, open-source project created by the community for educational and personal use. Use at your own risk.
 

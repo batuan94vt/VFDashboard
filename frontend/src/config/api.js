@@ -3,9 +3,11 @@
  * Centralized endpoints and base URL
  */
 
-let API_BASE_URL = import.meta.env.PUBLIC_API_URL || "http://localhost:3000";
+// Use relative path by default. This allows the app to work on localhost:4321,
+// Cloudflare Pages, or Vercel automatically without configuring PUBLIC_API_URL.
+let API_BASE_URL = import.meta.env.PUBLIC_API_URL || "";
 
-// Auto-add protocol if missing (useful for Render/Cloud platforms)
+// Only add protocol if a full domain is provided (and not empty)
 if (API_BASE_URL && !API_BASE_URL.startsWith("http")) {
   API_BASE_URL = `https://${API_BASE_URL}`;
 }
@@ -15,7 +17,7 @@ export const ENDPOINTS = {
   USER: `${API_BASE_URL}/api/user`,
   VEHICLES: `${API_BASE_URL}/api/vehicles`,
   TELEMETRY: (vin) => `${API_BASE_URL}/api/telemetry/${vin}`,
-  LOGOUT: `${API_BASE_URL}/api/logout`, // Logic for logout endpoint if implemented
+  LOGOUT: `${API_BASE_URL}/api/logout`,
 };
 
 export default {
