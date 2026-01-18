@@ -42,7 +42,6 @@ You can get the whole system running in minutes.
 
 2.  **Start the Dashboard**:
     ```bash
-    cd frontend
     npm install
     npm run dev
     ```

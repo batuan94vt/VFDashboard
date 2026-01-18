@@ -6,7 +6,7 @@ Based on the latest Cloudflare & Astro standards (Jan 2026), here is the optimal
 
 We have configured the project for **Edge-First** execution using `adapter: cloudflare()`.
 
-### `frontend/astro.config.mjs`
+### `astro.config.mjs`
 ```javascript
 import cloudflare from "@astrojs/cloudflare";
 export default defineConfig({
@@ -16,7 +16,7 @@ export default defineConfig({
 });
 ```
 
-### `frontend/wrangler.toml`
+### `wrangler.toml`
 Crucial for Node.js compatibility (Buffer, process, etc.) at the Edge.
 ```toml
 name = "vfdashboard"
@@ -38,9 +38,7 @@ This gives you **automatic deployments** on every push.
     *   **Framework Preset:** `Astro`
     *   **Build Command:** `npm run build`
     *   **Build Output:** `dist`
-    *   **Root Directory:** `frontend`
-6.  **Environment Variables:**
-    *   `nodejs_compat`: `true` (Add this if build fails, though `wrangler.toml` should handle it)
+    *   **Root Directory:** `/` (or leave empty)
 
 ### Option B: CLI Deployment (Fastest)
 Deploy directly from your terminal without waiting for Git CI.
@@ -51,7 +49,6 @@ Deploy directly from your terminal without waiting for Git CI.
     ```
 2.  **Build & Deploy**:
     ```bash
-    cd frontend
     npm run build
     npx wrangler pages deploy dist
     ```
@@ -60,7 +57,6 @@ Deploy directly from your terminal without waiting for Git CI.
 The new adapter supports **Platform Proxy**, meaning `npm run dev` locally will simulate the Cloudflare Worker environment (KV, Headers, etc.) accurately.
 
 ```bash
-cd frontend
 npm run dev
 ```
 
