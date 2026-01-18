@@ -218,8 +218,8 @@ class VinFastAPI {
         const strip = (s) =>
           s
             ? s
-              .replace(/^(Thành phố|Tỉnh|Quận|Huyện|Xã|Phường)\s+/gi, "")
-              .trim()
+                .replace(/^(Thành phố|Tỉnh|Quận|Huyện|Xã|Phường)\s+/gi, "")
+                .trim()
             : s;
 
         const rawDistrict = a.city_district || a.district || a.county;
