@@ -13,7 +13,7 @@
 The design adopts a **Neumorphism / Soft UI** aesthetic with a modular "Bento Grid" layout. It emphasizes clarity, organization, and a premium feel appropriate for high-tech EV monitoring.
 
 **Reference Visual Style**:
-_(Refer to `assets/dashboard_preview.png` for visual style orientation)_
+_(Refer to `assets/dashboard_preview.webp` for visual style orientation)_
 
 ### 1.2 Core Layout Structure
 

@@ -42,9 +42,18 @@ const TireCard = ({ pressure, temp, label, positionClass }) => {
   // Dynamic Styles based on status
   // Normal: Green Safe Theme
   // Warning: Amber/Orange Theme
-  const cardBg = isWarning
+
+  // PC Styles (Lighter)
+  const cardBgDesktop = isWarning
+    ? "md:bg-amber-50/90 md:border-amber-200"
+    : "md:bg-emerald-50/90 md:border-emerald-200";
+
+  // Mobile Styles (Unified with PC as requested)
+  const cardBgMobile = isWarning
     ? "bg-amber-50/90 border-amber-200"
     : "bg-emerald-50/90 border-emerald-200";
+
+  // Text Colors
   const textColor = isWarning ? "text-amber-600" : "text-emerald-700";
   const labelColor = isWarning ? "text-amber-600/70" : "text-emerald-600/70";
   const valueColor = isWarning ? "text-amber-600" : "text-emerald-600";
@@ -52,38 +61,61 @@ const TireCard = ({ pressure, temp, label, positionClass }) => {
 
   return (
     <div
-      className={`absolute ${positionClass} ${cardBg} backdrop-blur-sm px-2 md:px-3 py-1.5 md:py-2.5 rounded-xl border shadow-sm flex flex-col gap-0 md:gap-0.5 w-[110px] md:w-[130px] transition-all hover:scale-105 hover:bg-white hover:border-gray-200 hover:shadow-md z-20`}
+      className={`absolute ${positionClass} z-20 transition-all group-hover:scale-100`}
     >
-      {/* Label - colored by status */}
-      <span
-        className={`text-[10px] uppercase ${labelColor} font-extrabold tracking-wider leading-none mb-1`}
+      {/* PC: Card Style / Mobile: Glassmorphism Pill Style with Color */}
+      <div
+        className={`
+        flex flex-col items-center md:items-start
+        rounded-2xl md:rounded-xl 
+        border md:border md:shadow-sm md:backdrop-blur-sm
+        md:${cardBgDesktop}
+        ${cardBgMobile} backdrop-blur-md shadow-sm
+        px-1.5 py-1.5
+        md:px-3 md:py-2.5
+        gap-0 md:gap-0.5
+        w-[85px] md:w-[130px]
+        hover:scale-105 md:hover:bg-white md:hover:border-gray-200 md:hover:shadow-md transition-all
+        md:bg-opacity-100
+      `}
       >
-        {label}
-      </span>
+        {/* Label: On Mobile, keep very small */}
+        <span
+          className={`text-[8px] md:text-[10px] uppercase ${labelColor} font-extrabold tracking-widest leading-none mb-0.5 md:mb-1 opacity-70 md:opacity-100`}
+        >
+          {label}
+        </span>
 
-      {/* Stats Container */}
-      <div className="flex flex-col">
-        {/* Pressure Row */}
-        <div className="flex items-baseline gap-1">
-          <span
-            className={`text-xl md:text-2xl font-black tracking-tighter ${valueColor}`}
-          >
-            {displayPressure}
-          </span>
-          <span className={`text-[10px] ${subTextColor} font-bold uppercase`}>
-            {TIRE_PRESSURE.UNIT}
-          </span>
-        </div>
-
-        {/* Temp Row */}
-        {temp !== null && temp !== undefined && (
-          <div className="flex items-center gap-1 -mt-0.5">
-            <span className={`text-xs font-bold ${textColor}`}>{temp}</span>
-            <span className={`text-[10px] ${subTextColor} font-medium`}>
-              {TEMPERATURE.UNIT}
+        {/* Stats Container */}
+        <div className="flex flex-col items-center md:items-start">
+          {/* Pressure Row */}
+          <div className="flex items-baseline gap-px md:gap-1">
+            <span
+              className={`text-lg md:text-2xl font-black tracking-tighter ${valueColor} drop-shadow-sm md:drop-shadow-none`}
+            >
+              {displayPressure}
+            </span>
+            <span
+              className={`text-[9px] md:text-[10px] ${subTextColor} font-bold uppercase`}
+            >
+              {TIRE_PRESSURE.UNIT}
             </span>
           </div>
-        )}
+
+          {/* Temp Row */}
+          {temp !== null && temp !== undefined && (
+            <div className="flex items-center gap-0.5 md:gap-1 -mt-0.5 md:-mt-0.5">
+              <span className={`text-[9px] md:text-xs font-bold ${textColor}`}>
+                {temp}
+              </span>
+              <span
+                className={`text-[8px] md:text-[10px] ${subTextColor} font-medium`}
+              >
+                {TEMPERATURE.UNIT}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -109,10 +141,24 @@ const WarningItem = ({ label }) => (
   </div>
 );
 
+// Helper to split Odometer into Integer and Decimal parts (No Rounding)
+const formatOdometer = (value) => {
+  if (value === undefined || value === null)
+    return { integer: "N/A", decimal: "" };
+  const strVal = String(value);
+  const [intPart, decPart] = strVal.split(".");
+  return {
+    integer: Number(intPart).toLocaleString(),
+    decimal: decPart ? `.${decPart}` : "",
+  };
+};
+
 export default function DigitalTwin() {
   const data = useStore(vehicleStore);
   const [imageLoaded, setImageLoaded] = React.useState(false);
   const imgRef = React.useRef(null);
+
+  const odo = formatOdometer(data.odometer);
 
   React.useEffect(() => {
     if (imgRef.current && imgRef.current.complete) {
@@ -152,16 +198,30 @@ export default function DigitalTwin() {
     warnings.push("Unlocked");
 
   return (
-    <div className="relative w-full h-full min-h-[400px] bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-      <div className="relative flex-1 w-full flex items-center justify-center p-4">
-        <div className="absolute top-4 md:top-6 left-4 md:left-8 z-10 flex flex-col">
-          <h2 className="text-xl font-black text-gray-900 tracking-wide uppercase leading-none mb-2">
-            {data.vin ? (
-              data.customizedVehicleName || data.model || "VINFAST"
-            ) : (
-              <div className="h-6 w-32 bg-gray-200 animate-pulse rounded"></div>
-            )}
-          </h2>
+    <div className="relative w-full h-full min-h-[45vh] md:min-h-[400px] bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col flex-1">
+      <div className="relative flex-1 w-full flex items-center justify-center p-2 md:p-4">
+        <div className="absolute top-4 md:top-6 left-5 md:left-8 z-10 flex flex-col">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-1 md:mb-2">
+            <svg
+              className="w-6 h-6 text-blue-600 flex-shrink-0"
+              viewBox="0 0 512 512"
+              fill="currentColor"
+            >
+              <g transform="translate(0, 512) scale(0.1, -0.1)">
+                <path d="M560 3586 c-132 -28 -185 -75 -359 -321 -208 -291 -201 -268 -201 -701 0 -361 3 -383 69 -470 58 -77 133 -109 311 -134 202 -29 185 -21 199 -84 14 -62 66 -155 119 -209 110 -113 277 -165 430 -133 141 29 269 125 328 246 l29 59 1115 0 1115 0 29 -59 c60 -123 201 -226 345 -250 253 -43 499 137 543 397 34 203 -77 409 -268 500 -69 33 -89 38 -172 41 -116 5 -198 -15 -280 -67 -116 -76 -195 -193 -214 -321 -6 -36 -12 -71 -14 -77 -5 -19 -2163 -19 -2168 0 -2 6 -8 41 -14 77 -19 128 -98 245 -214 321 -82 52 -164 72 -280 67 -82 -3 -103 -8 -168 -40 -41 -19 -94 -52 -117 -72 -55 -48 -115 -139 -137 -209 -21 -68 -13 -66 -196 -37 -69 11 -128 20 -132 20 -17 0 -82 67 -94 97 -10 23 -14 86 -14 228 l0 195 60 0 c48 0 63 4 80 22 22 24 26 58 10 88 -12 22 -61 40 -111 40 l-39 0 0 43 c1 23 9 65 18 93 20 58 264 406 317 453 43 37 120 61 198 61 52 0 58 -2 53 -17 -4 -10 -48 -89 -98 -177 -70 -122 -92 -170 -95 -205 -5 -56 19 -106 67 -138 l33 -23 1511 0 c867 0 1583 -4 1680 -10 308 -18 581 -60 788 -121 109 -32 268 -103 268 -119 0 -6 -27 -10 -60 -10 -68 0 -100 -21 -100 -66 0 -63 40 -84 161 -84 l79 0 0 -214 c0 -200 -1 -215 -20 -239 -13 -16 -35 -29 -58 -33 -88 -16 -113 -102 -41 -140 81 -41 228 49 259 160 8 29 11 119 8 292 l-3 249 -32 67 c-45 96 -101 152 -197 197 -235 112 -604 187 -1027 209 l-156 9 -319 203 c-176 112 -359 223 -409 246 -116 56 -239 91 -366 104 -149 15 -1977 12 -2049 -4z m800 -341 l0 -205 -335 0 -336 0 12 23 c7 12 59 104 116 205 l105 182 219 0 219 0 0 -205z m842 15 c14 -102 27 -193 27 -202 1 -17 -23 -18 -359 -18 l-360 0 0 198 c0 109 3 202 7 205 4 4 153 6 332 5 l326 -3 27 -185z m528 157 c52 -14 125 -38 161 -55 54 -24 351 -206 489 -299 l35 -23 -516 0 -516 0 -26 188 c-15 103 -27 196 -27 206 0 18 7 19 153 13 112 -5 177 -12 247 -30z m-1541 -1132 c115 -63 176 -174 169 -305 -16 -272 -334 -402 -541 -221 -20 18 -51 63 -69 99 -28 57 -33 77 -33 142 0 65 5 85 33 142 37 76 93 128 169 159 75 30 200 23 272 -16z m3091 16 c110 -42 192 -149 207 -269 18 -159 -101 -319 -264 -352 -134 -28 -285 47 -350 174 -37 72 -43 180 -14 257 35 91 107 162 200 195 55 20 162 17 221 -5z" />
+                <path d="M989 2053 c-67 -65 -79 -81 -79 -110 0 -42 30 -73 72 -73 26 0 45 13 110 78 87 87 96 115 53 157 -42 43 -68 34 -156 -52z" />
+                <path d="M4055 2105 c-43 -42 -34 -70 53 -157 65 -65 84 -78 110 -78 42 0 72 31 72 73 0 29 -12 45 -79 110 -88 86 -114 95 -156 52z" />
+                <path d="M1705 2290 c-25 -28 -23 -76 4 -103 l22 -22 870 0 871 0 25 29 c27 31 25 66 -4 99 -15 16 -71 17 -893 17 -866 0 -877 0 -895 -20z" />
+              </g>
+            </svg>
+            <span className="truncate">
+              {data.vin ? (
+                data.customizedVehicleName || data.model || "VINFAST"
+              ) : (
+                <div className="h-6 w-32 bg-gray-200 animate-pulse rounded"></div>
+              )}
+            </span>
+          </h3>
 
           <div className="flex flex-col gap-0.5 animate-in fade-in slide-in-from-left-4 duration-700 delay-300">
             <div className="flex items-baseline gap-1">
@@ -170,9 +230,8 @@ export default function DigitalTwin() {
                   <span
                     className={`text-lg font-bold leading-none ${data.odometer != null ? "text-gray-700" : "text-gray-300"}`}
                   >
-                    {data.odometer !== undefined && data.odometer !== null
-                      ? Number(data.odometer).toLocaleString()
-                      : "N/A"}
+                    {odo.integer}
+                    <span className="text-gray-400 text-sm">{odo.decimal}</span>
                   </span>
                   <span className="text-[10px] font-bold text-gray-400 uppercase">
                     km
@@ -208,7 +267,7 @@ export default function DigitalTwin() {
           </div>
         </div>
 
-        <div className="relative w-full max-w-[520px] aspect-[16/10] flex items-center justify-center mt-6 md:mt-0 translate-y-4 md:translate-y-28 group">
+        <div className="relative w-full max-w-[520px] aspect-[16/10] flex items-center justify-center mt-3 md:mt-0 translate-y-8 md:translate-y-20 scale-90 md:scale-100 group">
           {hasMultipleVehicles && (
             <>
               {/* Left Arrow */}
@@ -266,7 +325,7 @@ export default function DigitalTwin() {
               </div>
 
               {/* Pagination Dots */}
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-30">
+              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-30">
                 {allVehicles.map((v, idx) => (
                   <button
                     key={v.vinCode}
@@ -313,26 +372,26 @@ export default function DigitalTwin() {
           pressure={data.tire_pressure_fr}
           temp={data.tire_temp_fr}
           label="FRONT RIGHT"
-          positionClass="top-[22%] left-[1%] md:left-[8%]"
+          positionClass="top-[25%] left-[1%] md:left-[8%]"
         />
         <TireCard
           pressure={data.tire_pressure_rr}
           temp={data.tire_temp_rr}
           label="REAR RIGHT"
-          positionClass="top-[22%] right-[1%] md:right-[8%]"
+          positionClass="top-[25%] right-[1%] md:right-[8%]"
         />
 
         <TireCard
           pressure={data.tire_pressure_fl}
           temp={data.tire_temp_fl}
           label="FRONT LEFT"
-          positionClass="bottom-[2%] left-[1%] md:left-[8%]"
+          positionClass="bottom-[8%] md:bottom-[2%] left-[2%] md:left-[8%]"
         />
         <TireCard
           pressure={data.tire_pressure_rl}
           temp={data.tire_temp_rl}
           label="REAR LEFT"
-          positionClass="bottom-[2%] right-[1%] md:right-[8%]"
+          positionClass="bottom-[8%] md:bottom-[2%] right-[2%] md:right-[8%]"
         />
       </div>
 
@@ -371,16 +430,10 @@ export default function DigitalTwin() {
               );
             },
           )}
-          <div className="w-px h-6 bg-gray-200 mx-1"></div>
-          <span
-            className={`text-base font-black transition-all duration-300 ${data.gear_position === GEARS.SPORT || data.gear_position === 5 ? "text-red-500 scale-125" : "text-gray-300 hover:text-gray-400"}`}
-          >
-            {GEARS.SPORT}
-          </span>
         </div>
 
         {/* Warnings Section */}
-        <div className="h-8 flex items-center justify-center w-full">
+        <div className="h-6 flex items-center justify-center w-full">
           {warnings.length > 0 ? (
             <div className="flex flex-wrap items-center justify-center gap-2">
               {warnings.map((w, idx) => (

@@ -1,11 +1,14 @@
 ---
-import LoginForm from '../components/Login.jsx';
+export const prerender = true;
+import { getImage } from "astro:assets";
+import Login from '../components/Login.jsx';
 import Layout from '../layouts/Layout.astro';
+import vf9Interior from '../assets/vf9-interior.png';
 import '../styles/global.css';
+
+const optimizedBg = await getImage({src: vf9Interior, format: 'webp', width: 1920, quality: 80});
 ---
 
 <Layout title="Login - VinFast Dashboard">
-	<div class="bg-gray-900 min-h-screen">
-		<LoginForm client:load />
-	</div>
+    <Login client:only="react" bgImage={optimizedBg.src} />
 </Layout>

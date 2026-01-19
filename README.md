@@ -8,17 +8,20 @@
 > **A side project by tech enthusiasts of VF9 Club Vietnam.**  
 > Dedicated to exploring the digital capabilities of our vehicles and creating a premium, personalized monitoring experience.
 
+🌐 **Official Dashboard**: [https://dashboard.vf9.club](https://dashboard.vf9.club)
+
 ---
 
 ## 📖 Introduction
 
-This project is an open-source dashboard designed specifically for VinFast EV owners (VF3, VF8, VF9). It leverages the vehicle's telemetry data to provide a "Digital Twin" experience, offering real-time insights into battery health, charging status, tire pressure, and environmental conditions.
+This project is an open-source dashboard designed specifically for VinFast EV owners. It leverages the vehicle's telemetry data to provide a "Digital Twin" experience, offering real-time insights into battery health, charging status, tire pressure, and environmental conditions.
 
 Our goal is to create a UI that matches the premium quality of the car itself—clean, modern, and informative.
 
 ## ✨ Features
 
 - **Digital Twin Visualizer**: Accurate representation of vehicle status including doors, locks, and tires.
+- **Mobile-First Experience**: Optimized specifically for phone screens with zero scrollbars, fixed viewports, and touch-friendly layouts.
 - **Real-time Telemetry**: Monitoring of Battery SOC, Range, Power consumption, and Charging time.
 - **Safety Monitor**: Integrated alerts for Tire Pressure (TPMS), Door Ajar, and Intrusion.
 - **System Health**: Overview of ECU versions (BMS, Gateway, MHU) and FOTA updates.
@@ -36,7 +39,7 @@ You can get the whole system running in minutes.
 
 ### Prerequisites
 
-- Node.js v23 or later
+- Node.js v22 or later
 - A VinFast Connected Car Account
 
 ### Installation
@@ -62,16 +65,16 @@ It is an unofficial, open-source project created by the community for educationa
 
 ## 📸 Screenshots
 
-![Dashboard Preview](docs/assets/dashboard_preview.png)
+### Dashboard (PC / Tablet)
 
-## 📍 Configuration
+![Dashboard Preview](docs/assets/dashboard_preview.webp)
 
-Create a `.env` file in the `backend` folder to secure your credentials (optional, currently supported via API login):
+### Mobile & Detail View
 
-```env
-PORT=3000
-VF_REGION=vn
-```
+<div style="display: flex; gap: 20px; flex-wrap: wrap;">
+  <img src="public/mobile-vf3.webp" alt="Mobile Dashboard - VF3" width="300" />
+  <img src="public/mobile-vf9-energy.webp" alt="Mobile Dashboard - VF9 Energy" width="300" />
+</div>
 
 ## 🤝 Contributing
 

@@ -30,7 +30,7 @@ This project aims to build a modern, high-performance web dashboard for VinFast 
 
 - **Role**: Unified Application Shell & API Proxy.
 - **Strategy**: "Islands Architecture" (Static shell + Interactive React Islands) + Server-Side Rendering (SSR).
-- **Key Libs**: TailwindCSS (Utility Styling), Nano Stores (State Management), Leaflet (Maps).
+- **Key Libs**: TailwindCSS (Utility Styling), Nano Stores (State Management).
 
 #### API Layer: Serverless Proxy (Astro API Routes)
 
@@ -44,6 +44,15 @@ This project aims to build a modern, high-performance web dashboard for VinFast 
 #### External Integrations (Client-side)
 
 - **Open-Meteo**: Weather retrieval based on GPS coordinates.
+
+#### Hybrid Shell Strategy
+
+To prevent SSR runtime errors on certain edge runtime versions, the root routes are **Prerendered (Static Shell)**:
+
+1. **Static HTML**: The layout shell is served as a static asset.
+2. **Client Component**: `DashboardApp.jsx` handles the dynamic "Inside" logic only after mounting in the browser.
+3. **Smooth Transition**: Prevents `[object Object]` rendering and flickering during auth redirects.
+
 - **Nominatim (OSM)**: Reverse geocoding (Lat/Long -> City/Country).
 
 ### 2.2 System Diagram
@@ -95,9 +104,14 @@ graph TD
 
 ---
 
-## 4. Development Roadmap
+### 2.3 Deployment Model
 
-1.  **Phase 1**: Initialize Project & UI Components.
-2.  **Phase 2**: Port API logic to Frontend Services.
-3.  **Phase 3**: Implement Serverless Proxy to solve CORS & Rate Limiting.
-4.  **Phase 4**: Deployment to Cloudflare Pages.
+The system is optimized for **Manual CLI Deployment** to Cloudflare Pages.
+
+- **Tools**: Wrangler CLI, Vite/Astro Build.
+- **Method**: Direct Upload of the `dist` folder.
+- **Reliability**: Uses a "Nuke Build" strategy (Clearing `dist` and `.wrangler`) to ensure fresh deployments.
+
+---
+
+## 3. Non-Functional Requirements (NFRs)

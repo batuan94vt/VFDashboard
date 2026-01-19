@@ -61,7 +61,7 @@ The application uses the `VinFastAPI` class to encapsulate all logic.
   1.  Constructs list of Resource IDs from `static_alias_map.json`.
   2.  Calls `/api/proxy/.../ping` to get raw values.
   3.  Parses raw values using `telemetryMapper`.
-  4.  Fetches Weather (Open-Meteo) and Address (Nominatim) directly.
+  4.  Fetches Weather (Open-Meteo) and Address (Nominatim) directly (with 2s timeout race condition to prevent blocking).
   5.  Returns combined, normalized data object.
 
 ---

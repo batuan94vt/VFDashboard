@@ -35,6 +35,7 @@ export interface VehicleState {
 
   // Climate
   outside_temp?: number | null;
+  weather_outside_temp?: number | null;
   inside_temp?: number | null; // From Telemetry
   fan_speed?: number | null;
 
@@ -100,10 +101,16 @@ export interface VehicleState {
   battery_type?: string;
   battery_serial?: string | null;
   battery_manufacture_date?: string | null;
+  // Full Telemetry Cache
+  fullTelemetryData: Record<string, any[]>; // VIN -> Raw Array
+  fullTelemetryAliases: Record<string, any[]>; // VIN -> Alias Array
+  fullTelemetryTimestamps: Record<string, number>; // VIN -> Timestamp
+  isScanning: boolean;
 
   lastUpdated: number;
   isRefreshing?: boolean;
   isInitialized?: boolean;
+  isEnriching?: boolean; // True when fetching Location/Weather externally
 }
 
 // Demo Mode / Default State
@@ -187,9 +194,16 @@ export const vehicleStore = map<VehicleState>({
   thermal_warning: 0,
   service_alert: 0,
 
+  // Full Telemetry Cache
+  fullTelemetryData: {},
+  fullTelemetryAliases: {},
+  fullTelemetryTimestamps: {},
+  isScanning: false,
+
   lastUpdated: Date.now(),
   isRefreshing: false,
   isInitialized: false,
+  isEnriching: false,
 });
 
 export const updateVehicleData = (data: Partial<VehicleState>) => {
@@ -272,6 +286,11 @@ const INITIAL_TELEMETRY: Partial<VehicleState> = {
   battery_serial: null,
   battery_manufacture_date: null,
 
+  // Full Telemetry
+  fullTelemetryData: {},
+  fullTelemetryTimestamps: {},
+  isScanning: false,
+
   // ECU & Versions
   bms_version: "--",
   gateway_version: "--",
@@ -344,6 +363,7 @@ export const fetchTelemetry = async (vin: string) => {
 
   // Set refreshing state
   vehicleStore.setKey("isRefreshing", true);
+  vehicleStore.setKey("isEnriching", true);
 
   try {
     const data = await api.getTelemetry(vin);
@@ -354,9 +374,87 @@ export const fetchTelemetry = async (vin: string) => {
     console.error("Telemetry Refresh Error", e);
   } finally {
     vehicleStore.setKey("isRefreshing", false);
+    vehicleStore.setKey("isEnriching", false);
     if (!vehicleStore.get().isInitialized) {
       vehicleStore.setKey("isInitialized", true);
     }
+  }
+};
+
+export const fetchFullTelemetry = async (vin: string, force = false) => {
+  if (!vin) return;
+  const current = vehicleStore.get();
+  const now = Date.now();
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  const lastFetch = current.fullTelemetryTimestamps[vin] || 0;
+  if (
+    !force &&
+    now - lastFetch < CACHE_DURATION &&
+    current.fullTelemetryData[vin]
+  ) {
+    console.log("Using cached full telemetry for", vin);
+    return;
+  }
+
+  vehicleStore.setKey("isScanning", true);
+
+  try {
+    // 1. Get Vehicle Info for Alias Version
+    const vehicleInfo = current.vehicles.find((v) => v.vinCode === vin);
+    const version = vehicleInfo?.vehicleAliasVersion || "1.0";
+    console.log(
+      `fetchFullTelemetry: vin=${vin}, version=${version}, foundInfo=${!!vehicleInfo}`,
+    );
+
+    // 2. Fetch Aliases
+    let resources = await api.getAliases(vin, version);
+
+    // Fallback if no resources found for the specific version
+    if ((!resources || resources.length === 0) && version !== "1.0") {
+      console.log(
+        `fetchFullTelemetry: No aliases for version ${version}, trying fallback to 1.0`,
+      );
+      resources = await api.getAliases(vin, "1.0");
+    }
+
+    if (!resources || resources.length === 0) {
+      console.error(
+        "fetchFullTelemetry: No aliases (including fallback) returned from API",
+        { vin },
+      );
+      throw new Error("No aliases found for vehicle");
+    }
+
+    console.log(`fetchFullTelemetry: Found ${resources.length} resources`);
+
+    // 3. Map to Request Objects
+    const requestObjects = resources
+      .filter((item: any) => item.devObjID)
+      .map((item: any) => ({
+        objectId: item.devObjID,
+        instanceId: item.devObjInstID || "0",
+        resourceId: item.devRsrcID || "0",
+      }));
+
+    // 4. Fetch Raw Telemetry
+    const rawData = await api.getRawTelemetry(vin, requestObjects);
+
+    // 5. Update Store & Cache
+    const newFullData = { ...current.fullTelemetryData, [vin]: rawData };
+    const newFullAliases = {
+      ...current.fullTelemetryAliases,
+      [vin]: resources,
+    };
+    const newTimestamps = { ...current.fullTelemetryTimestamps, [vin]: now };
+
+    vehicleStore.setKey("fullTelemetryData", newFullData);
+    vehicleStore.setKey("fullTelemetryAliases", newFullAliases);
+    vehicleStore.setKey("fullTelemetryTimestamps", newTimestamps);
+  } catch (e) {
+    console.error("Full Telemetry Fetch Error", e);
+  } finally {
+    vehicleStore.setKey("isScanning", false);
   }
 };
 

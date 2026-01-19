@@ -17,6 +17,8 @@ The `vehicleStore` is a mapped store containing:
 
 ### 1.2 Active Vehicle State (The "Digital Twin")
 
+- `isEnriching`: Boolean flag, true while fetching external data (Location/Weather).
+
 These fields represent the **currently selected** vehicle:
 
 - `vin`: Active VIN (Primary Key).

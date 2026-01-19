@@ -8,17 +8,14 @@ export const ALL = async ({ request, params }) => {
   const region = urlObj.searchParams.get("region") || DEFAULT_REGION;
   const regionConfig = REGIONS[region] || REGIONS[DEFAULT_REGION];
 
-  // Determine target base URL
-  // Vinfast sets different bases for different services, but our config.js seemed to use a single api_base.
-  // We need to route properly.
-  // telemetry -> ccaraccessmgmt
-  // user-vehicle -> ccarusermgnt
+  // Strip internal params from query
 
-  // Actually, our previous implementation in backend/server.js was cleaner because it used the VinFastAPI class which handled path construction.
-  // Here we are building a raw proxy. Ideally the CLIENT should send the full path relative to the base, or we decide here.
-  // The client sends `api/proxy/ccarusermgnt/api/v1/...`.
+  // Strip internal params from query
+  const targetSearchParams = new URLSearchParams(urlObj.search);
+  targetSearchParams.delete("region");
 
-  const targetUrl = `${regionConfig.api_base}/${path}${urlObj.search}`;
+  const searchStr = targetSearchParams.toString();
+  const targetUrl = `${regionConfig.api_base}/${path}${searchStr ? "?" + searchStr : ""}`;
 
   const clientHeaders = request.headers;
 

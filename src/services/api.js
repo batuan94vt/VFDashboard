@@ -108,9 +108,30 @@ class VinFastAPI {
       });
 
       if (!response.ok) {
-        throw new Error(
-          `Authentication failed: ${response.status} ${response.statusText}`,
-        );
+        let errorMessage = "An unexpected error occurred. Please try again.";
+        try {
+          const errorData = await response.json();
+          // Use message from server if it's safe/clean, otherwise fallback based on status
+          if (errorData && errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch (e) {
+          // JSON parse failed, stick to status mapping
+        }
+
+        if (response.status === 401) {
+          errorMessage =
+            "Incorrect email or password. Please check your credentials.";
+        } else if (response.status === 403) {
+          errorMessage =
+            "Access denied. Your account may be locked or restricted.";
+        } else if (response.status === 429) {
+          errorMessage = "Too many attempts. Please try again later.";
+        } else if (response.status >= 500) {
+          errorMessage = "VinFast server error. Please try again later.";
+        }
+
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -202,6 +223,68 @@ class VinFastAPI {
     }
 
     return await response.json();
+  }
+
+  // --- Full Telemetry Methods ---
+
+  async getAliases(vin, version = "1.0") {
+    if (vin) this.vin = vin;
+    if (!this.vin) throw new Error("VIN is required");
+
+    const proxyPath = `modelmgmt/api/v2/vehicle-model/mobile-app/vehicle/get-alias`;
+    const url = `/api/proxy/${proxyPath}?region=${this.region}&version=${version}`;
+
+    const response = await this._fetchWithRetry(url);
+    if (!response.ok) throw new Error("Failed to fetch aliases");
+
+    const json = await response.json();
+    let resources = [];
+
+    // Robust parsing logic
+    if (json.data && json.data.resources) {
+      resources = json.data.resources;
+    } else if (json.data && json.data.data && json.data.data.resources) {
+      resources = json.data.data.resources;
+    } else if (Array.isArray(json.data)) {
+      resources = json.data;
+    } else if (Array.isArray(json.resources)) {
+      resources = json.resources;
+    } else if (Array.isArray(json)) {
+      resources = json;
+    }
+
+    if (resources.length === 0) {
+      console.warn("getAliases: No resources found in response:", json);
+      // Handle business-logic 401 (sometimes in body with 200 OK)
+      if (json.code === 401000 || json.message?.includes("expired")) {
+        this.clearSession();
+        window.location.href = "/login";
+        throw new Error("Session expired (API Code 401000)");
+      }
+    }
+
+    return resources;
+  }
+
+  async getRawTelemetry(vin, requestObjects) {
+    if (vin) this.vin = vin;
+    if (!this.vin) throw new Error("VIN is required");
+
+    if (!requestObjects || requestObjects.length === 0) return [];
+
+    const proxyPath = `ccaraccessmgmt/api/v1/telemetry/app/ping`;
+    const url = `/api/proxy/${proxyPath}?region=${this.region}`;
+
+    const response = await this._fetchWithRetry(url, {
+      method: "POST",
+      body: JSON.stringify(requestObjects),
+    });
+
+    if (!response.ok)
+      throw new Error(`Raw Telemetry fetch failed: ${response.status}`);
+
+    const json = await response.json();
+    return json.data || [];
   }
 
   // --- External Integrations (Weather/Map) ---
@@ -322,21 +405,32 @@ class VinFastAPI {
 
     // Enrich with Location/Weather if coordinates exist
     if (parsed.latitude && parsed.longitude) {
-      // Fire and forget / parallel promise to not block UI?
-      // For simplicity, let's await them or return them as raw promises if store handles it.
-      // Let's await for a coherent state update.
-      const [geo, weather] = await Promise.all([
-        this.fetchLocationName(parsed.latitude, parsed.longitude),
-        this.fetchWeather(parsed.latitude, parsed.longitude),
-      ]);
+      try {
+        // Create a timeout promise
+        const timeout = new Promise((resolve) =>
+          setTimeout(() => resolve([null, null]), 2000),
+        );
 
-      if (geo) {
-        parsed.location_address = geo.location_address;
-        parsed.weather_address = geo.weather_address;
-      }
-      if (weather) {
-        parsed.outside_temp = weather.temperature; // Override/Fallback
-        parsed.weather_code = weather.weathercode;
+        // Race between data fetch and timeout
+        const [geo, weather] = await Promise.race([
+          Promise.all([
+            this.fetchLocationName(parsed.latitude, parsed.longitude),
+            this.fetchWeather(parsed.latitude, parsed.longitude),
+          ]),
+          timeout,
+        ]);
+
+        if (geo) {
+          parsed.location_address = geo.location_address;
+          parsed.weather_address = geo.weather_address;
+        }
+        if (weather) {
+          parsed.weather_outside_temp = weather.temperature;
+          parsed.weather_code = weather.weathercode;
+        }
+      } catch (e) {
+        console.warn("External enrichment failed or timed out", e);
+        // Continue without enrichment
       }
     }
 
