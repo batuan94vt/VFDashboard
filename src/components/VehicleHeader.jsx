@@ -331,10 +331,10 @@ export default function VehicleHeader({ onOpenTelemetry }) {
             <p className="text-xs text-gray-400 mt-0.5 font-medium tracking-wide">
               {vehicle.userVehicleType
                 ? vehicle.userVehicleType
-                  .replace("ROLE_", "")
-                  .toLowerCase()
-                  .replace(/_/g, " ")
-                  .replace(/\b\w/g, (c) => c.toUpperCase())
+                    .replace("ROLE_", "")
+                    .toLowerCase()
+                    .replace(/_/g, " ")
+                    .replace(/\b\w/g, (c) => c.toUpperCase())
                 : ""}
             </p>
           </div>
