@@ -11,10 +11,10 @@ export const GET = async ({ request, cookies }) => {
     const accessToken = cookies.get("access_token")?.value;
 
     if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const url = `https://${regionConfig.auth0_domain}/userinfo`;
@@ -22,8 +22,8 @@ export const GET = async ({ request, cookies }) => {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessToken}`
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
       },
     });
 

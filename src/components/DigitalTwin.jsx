@@ -233,12 +233,14 @@ export default function DigitalTwin() {
               </span>
               <div className="flex items-baseline gap-1 animate-in fade-in slide-in-from-right-4 duration-700 delay-300">
                 {data.vin &&
-                  data.odometer !== null &&
-                  data.odometer !== undefined ? (
+                data.odometer !== null &&
+                data.odometer !== undefined ? (
                   <>
                     <span className="text-base md:text-xl font-mono font-extrabold text-gray-700 tabular-nums">
                       {odo.integer}
-                      <span className="text-gray-400 text-sm">{odo.decimal}</span>
+                      <span className="text-gray-400 text-sm">
+                        {odo.decimal}
+                      </span>
                     </span>
                     <span className="text-[10px] font-bold text-gray-400 uppercase">
                       km
@@ -294,8 +296,8 @@ export default function DigitalTwin() {
               >
                 {data.warrantyExpirationDate
                   ? new Date(data.warrantyExpirationDate).toLocaleDateString(
-                    "vi-VN",
-                  )
+                      "vi-VN",
+                    )
                   : "N/A"}
               </span>
               <span className="text-gray-300">|</span>
@@ -371,10 +373,11 @@ export default function DigitalTwin() {
                   <button
                     key={v.vinCode}
                     onClick={() => switchVehicle(v.vinCode)}
-                    className={`transition-all duration-300 rounded-full ${idx === currentIndex
-                      ? "w-6 h-1.5 bg-gray-800"
-                      : "w-1.5 h-1.5 bg-gray-300 hover:bg-gray-400"
-                      }`}
+                    className={`transition-all duration-300 rounded-full ${
+                      idx === currentIndex
+                        ? "w-6 h-1.5 bg-gray-800"
+                        : "w-1.5 h-1.5 bg-gray-300 hover:bg-gray-400"
+                    }`}
                     title={
                       v.customizedVehicleName || v.vehicleName || "Vehicle"
                     }

@@ -16,12 +16,12 @@ VinFast Connected Car API sử dụng X-HASH authentication header để bảo v
 
 ### Required Headers
 
-| Header | Description | Example |
-|--------|-------------|---------|
-| `X-HASH` | HMAC-SHA256 signature (Base64) | `Xit6wzaC0Bpcsi6QTTT/dBY2hcN+jvHiKkEJu3EwNRI=` |
-| `X-TIMESTAMP` | Unix timestamp (milliseconds) | `1769189217462` |
-| `X-VIN-CODE` | Vehicle Identification Number | `RLLVXXXXXXXXXXXXX71` |
-| `Authorization` | Bearer token from Auth0 login | `Bearer eyJhbG...` |
+| Header          | Description                    | Example                                        |
+| --------------- | ------------------------------ | ---------------------------------------------- |
+| `X-HASH`        | HMAC-SHA256 signature (Base64) | `Xit6wzaC0Bpcsi6QTTT/dBY2hcN+jvHiKkEJu3EwNRI=` |
+| `X-TIMESTAMP`   | Unix timestamp (milliseconds)  | `1769189217462`                                |
+| `X-VIN-CODE`    | Vehicle Identification Number  | `RLLVXXXXXXXXXXXXX71`                          |
+| `Authorization` | Bearer token from Auth0 login  | `Bearer eyJhbG...`                             |
 
 ### Algorithm
 
@@ -31,6 +31,7 @@ X-HASH = Base64(HMAC-SHA256(secretKey, message))
 ```
 
 **Components:**
+
 - `method`: HTTP method (GET, POST, etc.)
 - `path`: API path without query string (e.g., `/ccaraccessmgmt/api/v1/telemetry/list_resource`)
 - `vin`: Vehicle VIN code
@@ -38,6 +39,7 @@ X-HASH = Base64(HMAC-SHA256(secretKey, message))
 - `timestamp`: X-TIMESTAMP value
 
 **Example:**
+
 ```
 Input:
   method = "POST"
@@ -59,16 +61,16 @@ Output:
 ### JavaScript (Node.js)
 
 ```javascript
-import crypto from 'crypto';
+import crypto from "crypto";
 
-const SECRET_KEY = '<secret_key>';
+const SECRET_KEY = "<secret_key>";
 
 function generateXHash(method, path, vin, timestamp) {
   // Remove query string
-  const pathOnly = path.split('?')[0];
+  const pathOnly = path.split("?")[0];
 
   // Ensure path starts with /
-  const normalizedPath = pathOnly.startsWith('/') ? pathOnly : '/' + pathOnly;
+  const normalizedPath = pathOnly.startsWith("/") ? pathOnly : "/" + pathOnly;
 
   // Build message
   const parts = [method, normalizedPath];
@@ -76,17 +78,22 @@ function generateXHash(method, path, vin, timestamp) {
   parts.push(SECRET_KEY);
   parts.push(String(timestamp));
 
-  const message = parts.join('_').toLowerCase();
+  const message = parts.join("_").toLowerCase();
 
   // HMAC-SHA256 + Base64
-  const hmac = crypto.createHmac('sha256', SECRET_KEY);
+  const hmac = crypto.createHmac("sha256", SECRET_KEY);
   hmac.update(message);
-  return hmac.digest('base64');
+  return hmac.digest("base64");
 }
 
 // Usage
 const timestamp = Date.now();
-const xHash = generateXHash('POST', '/api/v1/telemetry/list_resource', 'RLLVXXXXXXXXXXXXX71', timestamp);
+const xHash = generateXHash(
+  "POST",
+  "/api/v1/telemetry/list_resource",
+  "RLLVXXXXXXXXXXXXX71",
+  timestamp,
+);
 ```
 
 ### Python
@@ -132,23 +139,27 @@ def generate_xhash(method: str, path: str, vin: str = None) -> tuple[str, str]:
 ## API Endpoints
 
 ### Telemetry Data
+
 ```
 POST /ccaraccessmgmt/api/v1/telemetry/list_resource
 Body: [{"resourceId":"10","instanceId":"1","objectId":"34180"}, ...]
 ```
 
 ### Charging Stations
+
 ```
 POST /ccarcharging/api/v1/stations/search
 Body: {"latitude":21.209747,"longitude":105.793358,"excludeFavorite":false}
 ```
 
 ### User Vehicles
+
 ```
 GET /ccarusermgnt/api/v1/user-vehicle
 ```
 
 ### Vehicle Ping
+
 ```
 POST /api/v3.2/connected_car/app/ping
 ```
@@ -157,13 +168,13 @@ POST /api/v3.2/connected_car/app/ping
 
 ## Telemetry Object IDs
 
-| Object ID | Resource ID | Description |
-|-----------|-------------|-------------|
-| 34180 | 10 | State of Charge (SOC) |
-| 34181 | 7 | Estimated Range |
-| 34183 | 1 | Charging Status |
-| 34190 | * | Tire Pressure |
-| 34191 | * | Door Status |
+| Object ID | Resource ID | Description           |
+| --------- | ----------- | --------------------- |
+| 34180     | 10          | State of Charge (SOC) |
+| 34181     | 7           | Estimated Range       |
+| 34183     | 1           | Charging Status       |
+| 34190     | \*          | Tire Pressure         |
+| 34191     | \*          | Door Status           |
 
 ---
 
@@ -180,12 +191,12 @@ POST /api/v3.2/connected_car/app/ping
 
 ## Summary
 
-| Item | Status |
-|------|--------|
-| Algorithm | HMAC-SHA256(key, message) → Base64 |
+| Item           | Status                                      |
+| -------------- | ------------------------------------------- |
+| Algorithm      | HMAC-SHA256(key, message) → Base64          |
 | Message format | `method_path_vin_key_timestamp` (lowercase) |
-| Hash validity | ~10-30 seconds window |
-| Implementation | VFDashboard proxy auto-generates |
+| Hash validity  | ~10-30 seconds window                       |
+| Implementation | VFDashboard proxy auto-generates            |
 
 ---
 

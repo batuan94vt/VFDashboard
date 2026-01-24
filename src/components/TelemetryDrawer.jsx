@@ -31,11 +31,21 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
       // Improve name context
       let improvedName = meta?.name || null;
       const alias = meta?.alias || "";
-      if (improvedName && (improvedName.toLowerCase() === "status" || improvedName.toLowerCase() === "door status" || improvedName.toLowerCase() === "configuration json")) {
+      if (
+        improvedName &&
+        (improvedName.toLowerCase() === "status" ||
+          improvedName.toLowerCase() === "door status" ||
+          improvedName.toLowerCase() === "configuration json")
+      ) {
         // Extract context from alias (e.g., CAMP_MODE_CONTROL_STATUS -> Camp Mode Status)
-        const context = alias.split('_').slice(0, -1).map(word =>
-          word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-        ).join(' ');
+        const context = alias
+          .split("_")
+          .slice(0, -1)
+          .map(
+            (word) =>
+              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+          )
+          .join(" ");
         improvedName = `${context} ${improvedName}`;
       }
 
@@ -69,26 +79,26 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
   const groupedData = React.useMemo(() => {
     const groups = {};
     const categoryMap = {
-      'BATTERY_LEASING': 'Battery Leasing',
-      'BMS_STATUS': 'BMS Status',
-      'CAMP_MODE': 'Camp Mode',
-      'CAPP_PAIRING': 'CAPP Pairing',
-      'CCARSERVICE': 'C-Car Service',
-      'CHARGE_CONTROL': 'Charge Control',
-      'CHARGING_STATUS': 'Charging Status',
-      'CLIMATE': 'Climate Control',
-      'DATA_PRIVACY': 'Data Privacy',
-      'DOOR': 'Doors & Security',
-      'LOCATION': 'Location & GPS',
-      'VEHICLE_STATUS': 'Vehicle Status',
-      'VEHICLE_WARNINGS': 'Warnings',
-      'TPMS': 'Tire Pressure (TPMS)',
-      'WINDOW': 'Windows & Sunroof',
+      BATTERY_LEASING: "Battery Leasing",
+      BMS_STATUS: "BMS Status",
+      CAMP_MODE: "Camp Mode",
+      CAPP_PAIRING: "CAPP Pairing",
+      CCARSERVICE: "C-Car Service",
+      CHARGE_CONTROL: "Charge Control",
+      CHARGING_STATUS: "Charging Status",
+      CLIMATE: "Climate Control",
+      DATA_PRIVACY: "Data Privacy",
+      DOOR: "Doors & Security",
+      LOCATION: "Location & GPS",
+      VEHICLE_STATUS: "Vehicle Status",
+      VEHICLE_WARNINGS: "Warnings",
+      TPMS: "Tire Pressure (TPMS)",
+      WINDOW: "Windows & Sunroof",
     };
 
-    filteredData.forEach(item => {
+    filteredData.forEach((item) => {
       const alias = item.alias || "";
-      let categoryKey = 'OTHERS';
+      let categoryKey = "OTHERS";
 
       for (const [key, label] of Object.entries(categoryMap)) {
         if (alias.startsWith(key)) {
@@ -99,8 +109,8 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
 
       if (!groups[categoryKey]) {
         groups[categoryKey] = {
-          label: categoryMap[categoryKey] || 'Other Parameters',
-          items: []
+          label: categoryMap[categoryKey] || "Other Parameters",
+          items: [],
         };
       }
       groups[categoryKey].items.push(item);
@@ -109,11 +119,11 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
     // Sort categories: OTHERS at the end, others alphabetically
     return Object.keys(groups)
       .sort((a, b) => {
-        if (a === 'OTHERS') return 1;
-        if (b === 'OTHERS') return -1;
+        if (a === "OTHERS") return 1;
+        if (b === "OTHERS") return -1;
         return a.localeCompare(b);
       })
-      .map(key => groups[key]);
+      .map((key) => groups[key]);
   }, [filteredData]);
 
   useEffect(() => {
@@ -144,7 +154,6 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
-
 
   if (!isOpen) return null;
 

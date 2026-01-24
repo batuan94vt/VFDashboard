@@ -73,7 +73,7 @@ export const POST = async ({ request, cookies }) => {
       httpOnly: false, // accessible to JS for UI
       secure: true,
       sameSite: "lax",
-      maxAge: rememberMe ? 60 * 60 * 24 * 30 : undefined
+      maxAge: rememberMe ? 60 * 60 * 24 * 30 : undefined,
     });
 
     // Return success but NO TOKENS

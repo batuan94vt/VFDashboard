@@ -111,6 +111,7 @@ This project was developed based on inspiration and valuable technical documenta
 For users prioritizing privacy and data sovereignty, we recommend the **Self-hosted** version maintained by the **VinFast Owners - North America** community.
 
 This fork is optimized for local deployment (Docker/npm) and features:
+
 - 🔒 **Enhanced Privacy**: Credentials never leave your hardware; strictly local execution.
 - 📊 **Advanced Analytics**: 30-day battery history charts and data export (CSV/JSON).
 - 🌍 **Localization**: Support for Imperial/Metric units and Multi-language (English/French/Vietnamese).

@@ -9,10 +9,10 @@ export const POST = async ({ request, cookies }) => {
     const refresh_token = cookies.get("refresh_token")?.value;
 
     if (!refresh_token) {
-      return new Response(
-        JSON.stringify({ error: "No refresh token found" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "No refresh token found" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const regionConfig = REGIONS[region] || REGIONS["vn"];
@@ -33,13 +33,13 @@ export const POST = async ({ request, cookies }) => {
     const data = await response.json();
 
     if (!response.ok) {
-        // If refresh fails (e.g. invalid token), clear cookies
-        cookies.delete("access_token", { path: "/" });
-        cookies.delete("refresh_token", { path: "/" });
-        return new Response(JSON.stringify(data), {
-            status: response.status,
-            headers: { "Content-Type": "application/json" }
-        });
+      // If refresh fails (e.g. invalid token), clear cookies
+      cookies.delete("access_token", { path: "/" });
+      cookies.delete("refresh_token", { path: "/" });
+      return new Response(JSON.stringify(data), {
+        status: response.status,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // Refresh successful, update cookies
@@ -57,10 +57,10 @@ export const POST = async ({ request, cookies }) => {
 
     // Renew session based on user preference
     const cookieOptions = {
-        path: "/",
-        httpOnly: true,
-        secure: true,
-        sameSite: "lax",
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
     };
 
     if (rememberMe) {

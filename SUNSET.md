@@ -15,6 +15,7 @@ The X-HASH authentication issue has been resolved. The dashboard is now fully fu
 ### ⚠️ Important Limitation: No SOH Data
 
 The **State of Health (SOH)** battery data is **no longer returned** by the VinFast API. This means:
+
 - Battery health percentage is not available
 - Battery degradation tracking is not possible
 - Only basic telemetry data (SOC, range, charging status) is available
@@ -36,6 +37,7 @@ In January 2026, VinFast implemented **X-HASH authentication** for their connect
 ### Resolution
 
 The authentication mechanism has been analyzed and implemented:
+
 - ✅ Hash algorithm identified
 - ✅ Authentication implemented in dashboard
 - ✅ API access restored
@@ -55,12 +57,12 @@ During the X-HASH investigation, we:
 
 ### X-HASH Analysis Results:
 
-| Discovery | Details |
-|-----------|---------|
-| **Hash Pattern** | 92.6% timestamp-dependent, 7.4% body-dependent |
-| **Algorithm** | Base64(HMAC-SHA256) |
-| **Constant Hashes** | 0% - All dynamic |
-| **Status** | ✅ Resolved |
+| Discovery           | Details                                        |
+| ------------------- | ---------------------------------------------- |
+| **Hash Pattern**    | 92.6% timestamp-dependent, 7.4% body-dependent |
+| **Algorithm**       | Base64(HMAC-SHA256)                            |
+| **Constant Hashes** | 0% - All dynamic                               |
+| **Status**          | ✅ Resolved                                    |
 
 ---
 
@@ -69,6 +71,7 @@ During the X-HASH investigation, we:
 All our research and findings remain available for reference:
 
 ### API Documentation
+
 - **`docs/api/HASH_ANALYSIS_SUMMARY.md`** - X-HASH technical documentation
 - **`docs/api/COMPREHENSIVE_UPDATE.md`** - Multi-region API guide
 - **Postman Collections**: VN, US, EU regions (39 APIs each)
@@ -78,12 +81,14 @@ All our research and findings remain available for reference:
 ## 🎯 For Developers
 
 ### Using This Dashboard
+
 1. Clone the repository
 2. Run `npm install && npm run dev`
 3. Login with your VinFast account
 4. Access your vehicle data
 
 ### API Documentation
+
 See `docs/api/` for detailed API documentation and Postman collections.
 
 ---
@@ -91,9 +96,11 @@ See `docs/api/` for detailed API documentation and Postman collections.
 ## 🏆 Hall of Fame
 
 ### Contributors
+
 This project was a collaborative effort by the VF9 Club community.
 
 ### What We Built
+
 - ✅ Full API documentation
 - ✅ Multi-region Postman collections
 - ✅ X-HASH authentication support
@@ -101,6 +108,7 @@ This project was a collaborative effort by the VF9 Club community.
 - ✅ Comprehensive guides
 
 ### Timeline
+
 - **2024**: Dashboard development begins
 - **2025**: API discovery and documentation
 - **Jan 2026**: X-HASH authentication implemented by VinFast
@@ -114,6 +122,7 @@ This project was a collaborative effort by the VF9 Club community.
 > "Challenges are opportunities in disguise."
 
 This project demonstrated:
+
 - The strength of community collaboration
 - The value of thorough documentation
 - Persistence and patience
@@ -123,11 +132,13 @@ This project demonstrated:
 ## 🔗 Resources
 
 ### This Repository
+
 - [GitHub](https://github.com/VF9-Club/VFDashboard)
 - [API Documentation](./docs/api/)
 - [Postman Collections](./docs/api/)
 
 ### Community
+
 - [VF9 Club Facebook Group](https://www.facebook.com/groups/706124277686588/)
 - [VinFast Owners Organization](https://github.com/vinfastownersorg-cyber/vinfastowners)
 
@@ -138,6 +149,7 @@ This project demonstrated:
 This project remains open-source under the MIT License.
 
 The documentation and research findings are available for:
+
 - Educational purposes
 - Security research
 - Future official API development reference
@@ -147,6 +159,7 @@ The documentation and research findings are available for:
 ## 🙏 Thank You
 
 To everyone who:
+
 - Used the dashboard
 - Contributed code
 - Shared API logs
@@ -161,6 +174,7 @@ To everyone who:
 ## 🚀 What's Next?
 
 The dashboard is fully operational. Current priorities:
+
 1. **Monitor API changes** - VinFast may update their security
 2. **Track SOH data** - Hope for restoration of battery health data
 3. **Community features** - Welcome contributions and improvements

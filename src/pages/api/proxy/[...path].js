@@ -1,10 +1,10 @@
 export const prerender = false;
 
 import { REGIONS, DEFAULT_REGION, API_HEADERS } from "../../../config/vinfast";
-import crypto from 'crypto';
+import crypto from "crypto";
 
 // X-HASH Secret Key (reverse-engineered from VinFast APK)
-const XHASH_SECRET_KEY = 'Vinfast@2025';
+const XHASH_SECRET_KEY = "Vinfast@2025";
 
 /**
  * Generate X-HASH for VinFast API request
@@ -13,10 +13,12 @@ const XHASH_SECRET_KEY = 'Vinfast@2025';
  */
 function generateXHash(method, apiPath, vin, timestamp) {
   // Remove query string from path
-  const pathWithoutQuery = apiPath.split('?')[0];
+  const pathWithoutQuery = apiPath.split("?")[0];
 
   // Ensure path starts with /
-  const normalizedPath = pathWithoutQuery.startsWith('/') ? pathWithoutQuery : '/' + pathWithoutQuery;
+  const normalizedPath = pathWithoutQuery.startsWith("/")
+    ? pathWithoutQuery
+    : "/" + pathWithoutQuery;
 
   // Build message parts
   const parts = [method, normalizedPath];
@@ -27,16 +29,15 @@ function generateXHash(method, apiPath, vin, timestamp) {
   parts.push(String(timestamp));
 
   // Join with underscore and lowercase
-  const message = parts.join('_').toLowerCase();
+  const message = parts.join("_").toLowerCase();
 
   // HMAC-SHA256
-  const hmac = crypto.createHmac('sha256', XHASH_SECRET_KEY);
+  const hmac = crypto.createHmac("sha256", XHASH_SECRET_KEY);
   hmac.update(message);
 
   // Base64 encode
-  return hmac.digest('base64');
+  return hmac.digest("base64");
 }
-
 
 export const ALL = async ({ request, params, cookies }) => {
   const apiPath = params.path;
@@ -64,10 +65,10 @@ export const ALL = async ({ request, params, cookies }) => {
   let xTimestamp = clientHeaders.get("x-timestamp");
 
   if (!authHeader) {
-      const cookieToken = cookies.get("access_token")?.value;
-      if (cookieToken) {
-          authHeader = `Bearer ${cookieToken}`;
-      }
+    const cookieToken = cookies.get("access_token")?.value;
+    if (cookieToken) {
+      authHeader = `Bearer ${cookieToken}`;
+    }
   }
 
   // Get request body for POST/PUT/PATCH

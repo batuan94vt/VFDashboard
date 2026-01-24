@@ -295,10 +295,10 @@ export default function VehicleHeader({ onOpenTelemetry }) {
             <p className="text-xs text-gray-400 mt-0.5 font-medium tracking-wide">
               {vehicle.userVehicleType
                 ? vehicle.userVehicleType
-                  .replace("ROLE_", "")
-                  .toLowerCase()
-                  .replace(/_/g, " ")
-                  .replace(/\b\w/g, (c) => c.toUpperCase())
+                    .replace("ROLE_", "")
+                    .toLowerCase()
+                    .replace(/_/g, " ")
+                    .replace(/\b\w/g, (c) => c.toUpperCase())
                 : ""}
             </p>
           </div>
@@ -337,7 +337,10 @@ export default function VehicleHeader({ onOpenTelemetry }) {
                     </p>
                     <div className="flex items-center gap-3">
                       <img
-                        src={vehicle.user_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(vehicle.user_name || "User")}&background=0D8ABC&color=fff`}
+                        src={
+                          vehicle.user_avatar ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(vehicle.user_name || "User")}&background=0D8ABC&color=fff`
+                        }
                         className="w-10 h-10 rounded-full border border-white shadow-sm"
                         alt=""
                       />
@@ -346,7 +349,9 @@ export default function VehicleHeader({ onOpenTelemetry }) {
                           {vehicle.user_name}
                         </p>
                         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">
-                          {vehicle.userVehicleType?.replace("ROLE_", "").replace(/_/g, " ")}
+                          {vehicle.userVehicleType
+                            ?.replace("ROLE_", "")
+                            .replace(/_/g, " ")}
                         </p>
                       </div>
                     </div>
@@ -364,7 +369,11 @@ export default function VehicleHeader({ onOpenTelemetry }) {
                       {(vehicle.vehicles || []).map((v) => {
                         const isSelected = v.vinCode === vehicle.vin;
                         const cached = vehicle.vehicleCache[v.vinCode] || {};
-                        const name = v.customizedVehicleName || v.marketingName || v.vehicleName || "VinFast Vehicle";
+                        const name =
+                          v.customizedVehicleName ||
+                          v.marketingName ||
+                          v.vehicleName ||
+                          "VinFast Vehicle";
 
                         const img = v.vehicleImage || cached.vehicleImage;
 
@@ -385,7 +394,9 @@ export default function VehicleHeader({ onOpenTelemetry }) {
                               />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className={`text-sm font-extrabold truncate ${isSelected ? "text-blue-700" : "text-gray-900"}`}>
+                              <p
+                                className={`text-sm font-extrabold truncate ${isSelected ? "text-blue-700" : "text-gray-900"}`}
+                              >
                                 {name}
                               </p>
                               <p className="text-[10px] font-mono font-bold text-gray-400 truncate tracking-tighter">
@@ -394,8 +405,18 @@ export default function VehicleHeader({ onOpenTelemetry }) {
                             </div>
                             {isSelected && (
                               <div className="h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center shrink-0 shadow-sm border-2 border-white">
-                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                <svg
+                                  className="w-3 h-3 text-white"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M5 13l4 4L19 7"
+                                  />
                                 </svg>
                               </div>
                             )}

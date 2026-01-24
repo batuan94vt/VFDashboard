@@ -13,11 +13,13 @@
 **Công cụ:** mitmproxy
 
 **Bước thực hiện:**
+
 1. Setup mitmproxy trên port 8080
 2. Cài certificate lên device iOS
 3. Capture traffic từ VinFast app
 
 **Kết quả:**
+
 - Phát hiện headers: `X-HASH`, `X-TIMESTAMP`, `X-VIN-CODE`
 - Hash format: Base64, 44 characters (256-bit = HMAC-SHA256)
 - Hash thay đổi theo timestamp → time-based
@@ -32,17 +34,20 @@
 **Công cụ:** jadx (Android decompiler)
 
 **Bước thực hiện:**
+
 ```bash
 brew install jadx
 jadx -d docs/jadx_output/ com.vinfast.companion_app/*.dex
 ```
 
 **Files quan trọng tìm được:**
+
 1. `TokenInterceptor.java` - OkHttp interceptor thêm X-HASH header
 2. `SecurityUtils.java` - Cryptographic utilities
 3. `HMACInterceptor.java` - HMAC signing logic
 
 **Phát hiện từ code:**
+
 ```java
 // TokenInterceptor.java - method c() (secret key generation)
 byte[] bytes = String.valueOf(
@@ -67,6 +72,7 @@ byte[] secretKey = SecurityUtils.i(
 ```
 
 **Phát hiện message format:**
+
 ```java
 // Build message parts
 ArrayList arrayList = new ArrayList();
@@ -90,6 +96,7 @@ String xHash = securityUtils.j(securityUtils.n(keyBytes, messageBytes));
 **Vấn đề:** Python decryption failed với padding errors
 
 **Nguyên nhân:**
+
 - Sai birth date milliseconds (timezone issue)
 - Python: 744768000000 vs APK logs: 744854400000 (24h difference)
 
@@ -128,6 +135,7 @@ byte[] decrypted = cipher.doFinal(Base64.getDecoder().decode("AHYhIZONK8ZR58s76Y
 ### Phase 4: Verification
 
 **Test với captured data:**
+
 ```python
 method = "POST"
 path = "/ccarcharging/api/v1/stations/search"
@@ -148,14 +156,15 @@ xhash = base64(hmac_sha256(secret, message))
 
 ### Tổng kết Biện Pháp
 
-| Phase | Công cụ | Mục đích | Kết quả |
-|-------|---------|----------|---------|
-| 1 | mitmproxy | Capture traffic | Xác định hash format, headers |
-| 2 | jadx | Decompile APK | Tìm algorithm, encrypted secret |
-| 3 | Java | Decrypt secret | `Vinfast@2025` |
-| 4 | Python | Verify | Match 100% với captured hashes |
+| Phase | Công cụ   | Mục đích        | Kết quả                         |
+| ----- | --------- | --------------- | ------------------------------- |
+| 1     | mitmproxy | Capture traffic | Xác định hash format, headers   |
+| 2     | jadx      | Decompile APK   | Tìm algorithm, encrypted secret |
+| 3     | Java      | Decrypt secret  | `Vinfast@2025`                  |
+| 4     | Python    | Verify          | Match 100% với captured hashes  |
 
 **Key insights:**
+
 1. Birth date `1993-08-08` được dùng để generate AES key
 2. Encrypted secret hardcoded trong APK
 3. Message format: `method_path_vin_secret_timestamp` (lowercase)
@@ -280,24 +289,24 @@ Response:
 
 **Object/Resource ID Reference:**
 
-| objectId | resourceId | Description | Unit |
-|----------|------------|-------------|------|
-| 34180 | 10 | State of Charge (SOC) | % |
-| 34181 | 7 | Estimated Range | km |
-| 34183 | 1 | Charging Status | enum |
-| 34190 | 2 | Front Left Tire Pressure | kPa |
-| 34190 | 3 | Front Right Tire Pressure | kPa |
-| 34190 | 4 | Rear Left Tire Pressure | kPa |
-| 34190 | 5 | Rear Right Tire Pressure | kPa |
-| 34191 | 1-4 | Door Status (FL/FR/RL/RR) | 0/1 |
-| 34192 | 1 | Trunk Status | 0/1 |
-| 34193 | 1 | Hood Status | 0/1 |
-| 34194 | 1 | Window Status | 0/1 |
-| 34195 | 1 | Lock Status | 0/1 |
-| 34196 | 1 | Climate Status | 0/1 |
-| 34197 | 1 | Odometer | km |
-| 34198 | 1 | Location Latitude | degree |
-| 34198 | 2 | Location Longitude | degree |
+| objectId | resourceId | Description               | Unit   |
+| -------- | ---------- | ------------------------- | ------ |
+| 34180    | 10         | State of Charge (SOC)     | %      |
+| 34181    | 7          | Estimated Range           | km     |
+| 34183    | 1          | Charging Status           | enum   |
+| 34190    | 2          | Front Left Tire Pressure  | kPa    |
+| 34190    | 3          | Front Right Tire Pressure | kPa    |
+| 34190    | 4          | Rear Left Tire Pressure   | kPa    |
+| 34190    | 5          | Rear Right Tire Pressure  | kPa    |
+| 34191    | 1-4        | Door Status (FL/FR/RL/RR) | 0/1    |
+| 34192    | 1          | Trunk Status              | 0/1    |
+| 34193    | 1          | Hood Status               | 0/1    |
+| 34194    | 1          | Window Status             | 0/1    |
+| 34195    | 1          | Lock Status               | 0/1    |
+| 34196    | 1          | Climate Status            | 0/1    |
+| 34197    | 1          | Odometer                  | km     |
+| 34198    | 1          | Location Latitude         | degree |
+| 34198    | 2          | Location Longitude        | degree |
 
 ---
 
@@ -493,6 +502,7 @@ Notes:
 ## Phần 3: Khả Năng Khai Thác Thêm
 
 ### Đã xác nhận có thể lấy:
+
 1. **Vehicle Info:** VIN, model, year, color, battery capacity
 2. **Real-time Telemetry:** SOC, range, tire pressure, door/trunk/hood status
 3. **Location:** GPS coordinates (latitude, longitude)
@@ -501,6 +511,7 @@ Notes:
 6. **Remote Commands:** Lock/unlock, climate, horn, flash
 
 ### Cần explore thêm:
+
 1. **Notifications API** - Push notification history
 2. **Service/Maintenance API** - Service records
 3. **OTA Updates API** - Software version info
@@ -508,6 +519,7 @@ Notes:
 5. **Geofence API** - Location alerts configuration
 
 ### Endpoints chưa test:
+
 ```
 GET /ccarusermgnt/api/v1/notifications
 GET /ccarusermgnt/api/v1/service-history
@@ -521,16 +533,19 @@ POST /ccarusermgnt/api/v1/geofence
 ## Kết Luận
 
 **Thành công:**
+
 - Reverse engineer X-HASH algorithm hoàn chỉnh
 - VFDashboard có thể hoạt động độc lập
 - Không cần proxy từ official app
 
 **Secret Key Info:**
+
 - Key: `Vinfast@2025`
 - Derived from: Birth date 1993-08-08 → AES key → Decrypt hardcoded value
 - Algorithm: HMAC-SHA256 + Base64
 
 **Next Steps:**
+
 1. Test các endpoint chưa explore
 2. Document thêm Object/Resource IDs
 3. Build complete API client library

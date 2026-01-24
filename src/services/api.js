@@ -38,7 +38,12 @@ class VinFastAPI {
       date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
       expires = "; expires=" + date.toUTCString();
     }
-    document.cookie = name + "=" + (encodeURIComponent(JSON.stringify(value)) || "") + expires + "; path=/; SameSite=Lax";
+    document.cookie =
+      name +
+      "=" +
+      (encodeURIComponent(JSON.stringify(value)) || "") +
+      expires +
+      "; path=/; SameSite=Lax";
   }
 
   getCookie(name) {
@@ -50,7 +55,9 @@ class VinFastAPI {
       while (c.charAt(0) === " ") c = c.substring(1, c.length);
       if (c.indexOf(nameEQ) === 0) {
         try {
-          return JSON.parse(decodeURIComponent(c.substring(nameEQ.length, c.length)));
+          return JSON.parse(
+            decodeURIComponent(c.substring(nameEQ.length, c.length)),
+          );
         } catch (e) {
           return null;
         }
@@ -61,7 +68,8 @@ class VinFastAPI {
 
   deleteCookie(name) {
     if (typeof document === "undefined") return;
-    document.cookie = name + "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+    document.cookie =
+      name + "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
   }
 
   saveSession() {
@@ -96,7 +104,9 @@ class VinFastAPI {
 
         // We rely on background refresh or next API call to validate session
         // Proactive Refresh "Renew Mechanism"
-        this.refreshAccessToken().catch(e => console.warn("Background refresh failed", e));
+        this.refreshAccessToken().catch((e) =>
+          console.warn("Background refresh failed", e),
+        );
       } else {
         // Check for vf_region cookie if vf_session is missing (maybe new login flow)
         // But for now vf_session is our metadata source.
@@ -461,8 +471,10 @@ class VinFastAPI {
     // Enrich with Location/Weather if coordinates exist
     if (parsed.latitude && parsed.longitude) {
       try {
-        console.log(`Enriching data for ${parsed.latitude}, ${parsed.longitude}`);
-        
+        console.log(
+          `Enriching data for ${parsed.latitude}, ${parsed.longitude}`,
+        );
+
         // Create a timeout promise that rejects
         const timeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Enrichment timed out")), 5000),
@@ -470,8 +482,14 @@ class VinFastAPI {
 
         // Fetch both independently so one doesn't fail the other
         const results = await Promise.allSettled([
-          Promise.race([this.fetchLocationName(parsed.latitude, parsed.longitude), timeout]),
-          Promise.race([this.fetchWeather(parsed.latitude, parsed.longitude), timeout])
+          Promise.race([
+            this.fetchLocationName(parsed.latitude, parsed.longitude),
+            timeout,
+          ]),
+          Promise.race([
+            this.fetchWeather(parsed.latitude, parsed.longitude),
+            timeout,
+          ]),
         ]);
 
         const geoResult = results[0];
@@ -482,7 +500,7 @@ class VinFastAPI {
           parsed.location_address = geo.location_address;
           parsed.weather_address = geo.weather_address;
         } else {
-            console.warn("Location fetch failed or timed out", geoResult.reason);
+          console.warn("Location fetch failed or timed out", geoResult.reason);
         }
 
         if (weatherResult.status === "fulfilled" && weatherResult.value) {
@@ -490,7 +508,10 @@ class VinFastAPI {
           parsed.weather_outside_temp = weather.temperature;
           parsed.weather_code = weather.weathercode;
         } else {
-            console.warn("Weather fetch failed or timed out", weatherResult.reason);
+          console.warn(
+            "Weather fetch failed or timed out",
+            weatherResult.reason,
+          );
         }
       } catch (e) {
         console.warn("External enrichment failed critically", e);
