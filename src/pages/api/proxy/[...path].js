@@ -3,6 +3,13 @@ export const prerender = false;
 import { REGIONS, DEFAULT_REGION, API_HEADERS } from "../../../config/vinfast";
 import crypto from "crypto";
 
+// Restrict proxy usage to known VinFast API namespaces used by the dashboard.
+const ALLOWED_PATH_PREFIXES = [
+  "ccarusermgnt/api/v1/user-vehicle",
+  "modelmgmt/api/v2/vehicle-model/",
+  "ccaraccessmgmt/api/v1/telemetry/",
+];
+
 /**
  * Generate X-HASH for VinFast API request
  * Algorithm: HMAC-SHA256(secretKey, message) -> Base64
@@ -38,6 +45,17 @@ function generateXHash(method, apiPath, vin, timestamp, secretKey) {
 
 export const ALL = async ({ request, params, cookies, locals }) => {
   const apiPath = params.path;
+
+  const isAllowedPath = ALLOWED_PATH_PREFIXES.some((prefix) =>
+    apiPath.startsWith(prefix),
+  );
+  if (!isAllowedPath) {
+    return new Response(JSON.stringify({ error: "Proxy path not allowed" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const urlObj = new URL(request.url);
   const region = urlObj.searchParams.get("region") || DEFAULT_REGION;
   const regionConfig = REGIONS[region] || REGIONS[DEFAULT_REGION];
@@ -49,24 +67,17 @@ export const ALL = async ({ request, params, cookies, locals }) => {
   const searchStr = targetSearchParams.toString();
   const targetUrl = `${regionConfig.api_base}/${apiPath}${searchStr ? "?" + searchStr : ""}`;
 
-  const clientHeaders = request.headers;
-
-  // Forward Auth Header
-  // Priority: 1. Authorization header from client (if manual override)
-  // 2. Cookie 'access_token' (Secure Proxy Mode)
-  let authHeader = clientHeaders.get("Authorization");
-  const vinHeader = clientHeaders.get("x-vin-code");
-
-  // Allow client to pass X-HASH and X-TIMESTAMP directly
-  let xHash = clientHeaders.get("x-hash");
-  let xTimestamp = clientHeaders.get("x-timestamp");
-
-  if (!authHeader) {
-    const cookieToken = cookies.get("access_token")?.value;
-    if (cookieToken) {
-      authHeader = `Bearer ${cookieToken}`;
-    }
+  const accessToken = cookies.get("access_token")?.value;
+  if (!accessToken) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
   }
+
+  const clientHeaders = request.headers;
+  const vinHeader = clientHeaders.get("x-vin-code");
+  const playerHeader = clientHeaders.get("x-player-identifier");
 
   // Get request body for POST/PUT/PATCH
   let requestBody = null;
@@ -74,49 +85,53 @@ export const ALL = async ({ request, params, cookies, locals }) => {
     requestBody = await request.text();
   }
 
-  // If no X-HASH provided, generate it dynamically
-  if (!xHash) {
-    // 🛡️ Sentinel: Retrieve secret from environment (Cloudflare or Local)
-    const runtimeEnv = locals?.runtime?.env || import.meta.env || {};
-    const secretKey =
-      runtimeEnv.VINFAST_XHASH_SECRET ||
-      (typeof process !== "undefined"
-        ? process.env.VINFAST_XHASH_SECRET
-        : undefined);
+  const runtimeEnv = locals?.runtime?.env || import.meta.env || {};
+  let secretKey =
+    runtimeEnv.VINFAST_XHASH_SECRET ||
+    (typeof process !== "undefined"
+      ? process.env.VINFAST_XHASH_SECRET
+      : undefined);
 
-    if (!secretKey) {
-      console.error(
-        "CRITICAL: VINFAST_XHASH_SECRET environment variable is missing",
-      );
-      return new Response(
-        JSON.stringify({ error: "Server Configuration Error" }),
-        { status: 500 },
-      );
-    }
-
-    const timestamp = Date.now();
-    xHash = generateXHash(
-      request.method,
-      apiPath,
-      vinHeader,
-      timestamp,
-      secretKey,
-    );
-    xTimestamp = String(timestamp);
-    console.log(`[Proxy] Generated X-HASH for ${request.method} /${apiPath}`);
+  if (!secretKey && import.meta.env.DEV) {
+    // Preserve local developer UX while still requiring env var in production.
+    secretKey = "Vinfast@2025";
+    console.warn("DEV fallback: using default VINFAST_XHASH_SECRET.");
   }
+
+  if (!secretKey) {
+    console.error(
+      "CRITICAL: VINFAST_XHASH_SECRET environment variable is missing",
+    );
+    return new Response(
+      JSON.stringify({ error: "Server Configuration Error" }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
+
+  const timestamp = Date.now();
+  const xHash = generateXHash(
+    request.method,
+    apiPath,
+    vinHeader,
+    timestamp,
+    secretKey,
+  );
+  const xTimestamp = String(timestamp);
+  console.log(`[Proxy] Generated X-HASH for ${request.method} /${apiPath}`);
 
   const proxyHeaders = {
     ...API_HEADERS, // standard headers
     "Content-Type": "application/json",
+    Authorization: `Bearer ${accessToken}`,
+    "X-HASH": xHash,
+    "X-TIMESTAMP": xTimestamp,
   };
 
-  if (authHeader) proxyHeaders["Authorization"] = authHeader;
   if (vinHeader) proxyHeaders["x-vin-code"] = vinHeader;
-
-  // Add X-HASH and X-TIMESTAMP if available
-  if (xHash) proxyHeaders["X-HASH"] = xHash;
-  if (xTimestamp) proxyHeaders["X-TIMESTAMP"] = xTimestamp;
+  if (playerHeader) proxyHeaders["x-player-identifier"] = playerHeader;
 
   const init = {
     method: request.method,
@@ -135,10 +150,7 @@ export const ALL = async ({ request, params, cookies, locals }) => {
     const responseHeaders = {
       "Content-Type": "application/json",
     };
-
-    if (xHash) {
-      responseHeaders["X-Hash-Source"] = "generated";
-    }
+    responseHeaders["X-Hash-Source"] = "generated";
 
     return new Response(data, {
       status: response.status,

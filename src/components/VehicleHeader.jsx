@@ -14,6 +14,18 @@ import {
 import { api } from "../services/api";
 import AboutModal from "./AboutModal";
 
+// Generate a local SVG avatar to avoid third-party avatar requests.
+function localAvatar(name) {
+  const initials = (name || "VF")
+    .split(" ")
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" rx="20" fill="%230D8ABC"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" fill="white" font-family="sans-serif" font-size="16" font-weight="bold">${initials}</text></svg>`;
+  return `data:image/svg+xml,${svg}`;
+}
+
 // Weather Icon (Dynamic WMO Codes)
 const WeatherIcon = ({ temp, code }) => {
   // WMO Weather Codes:
@@ -330,7 +342,7 @@ export default function VehicleHeader({ onOpenTelemetry }) {
                 src={
                   vehicle.user_avatar
                     ? vehicle.user_avatar
-                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(vehicle.user_name || "VinFast User")}&background=0D8ABC&color=fff`
+                    : localAvatar(vehicle.user_name)
                 }
                 alt="User"
                 className="h-10 w-10 rounded-full border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-offset-2 group-hover:ring-blue-500 transition-all"
@@ -355,8 +367,7 @@ export default function VehicleHeader({ onOpenTelemetry }) {
                     <div className="flex items-center gap-3">
                       <img
                         src={
-                          vehicle.user_avatar ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(vehicle.user_name || "User")}&background=0D8ABC&color=fff`
+                          vehicle.user_avatar || localAvatar(vehicle.user_name)
                         }
                         className="w-10 h-10 rounded-full border border-white shadow-sm"
                         alt=""

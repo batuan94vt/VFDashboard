@@ -33,6 +33,7 @@ class VinFastAPI {
   setCookie(name, value, days) {
     if (typeof document === "undefined") return;
     let expires = "";
+    const isHttps = window.location.protocol === "https:";
     if (days) {
       const date = new Date();
       date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
@@ -43,7 +44,7 @@ class VinFastAPI {
       "=" +
       (encodeURIComponent(JSON.stringify(value)) || "") +
       expires +
-      "; path=/; SameSite=Lax";
+      `; path=/; SameSite=Lax${isHttps ? "; Secure" : ""}`;
   }
 
   getCookie(name) {

@@ -28,8 +28,15 @@ export const GET = async ({ request, cookies }) => {
     });
 
     const data = await response.json();
+    const filtered = {
+      name: data.name,
+      nickname: data.nickname,
+      picture: data.picture,
+      email: data.email,
+      sub: data.sub,
+    };
 
-    return new Response(JSON.stringify(data), {
+    return new Response(JSON.stringify(filtered), {
       status: response.status,
       headers: {
         "Content-Type": "application/json",
