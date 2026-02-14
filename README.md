@@ -7,16 +7,15 @@
 
 ---
 
-## 🔄 **Status Update** (January 2026)
+## 🔄 **Status Update** (February 2026)
 
-> **Dashboard is back online!** The X-HASH authentication issue has been resolved.
+> **Dashboard is fully operational!** Both X-HASH and X-HASH-2 authentication have been reverse engineered and implemented.
 >
-> ✅ **What changed?** API authentication is now working properly.
-> ⚠️ **Important limitation**: SOH (State of Health) battery data is **no longer available** in the API response.
-> 📚 **Documentation**: API documentation and technical reports remain available for reference.
-> 🎯 **For details**: See [SUNSET.md](./SUNSET.md) and [API Documentation](./docs/api/)
-
-**The dashboard is functional again, but SOH (battery health) data is no longer provided by the API.**
+> ✅ **X-HASH + X-HASH-2**: Dual-layer API signing is working on all telemetry endpoints.
+> ✅ **Deployed**: Running on Cloudflare Pages with server-side proxy.
+> ⚠️ **Limitation**: SOH (State of Health) battery data is **no longer available** in the API response.
+> 📚 **Documentation**: [API Endpoints](./docs/api/API_ENDPOINTS.md) | [X-HASH Technical Docs](./docs/api/HASH_ANALYSIS_SUMMARY.md) | [Reverse Engineering Report](./docs/api/REVERSE_ENGINEERING_REPORT.md)
+> 🌐 **Bilingual docs**: English at `docs/api/`, Vietnamese at `docs/api/vi/`
 
 ---
 
@@ -103,6 +102,16 @@ We welcome contributions from the community!
 3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
 4.  Push to the Branch (`git push origin feature/AmazingFeature`)
 5.  Open a Pull Request
+
+## 🌍 Community Forks
+
+VinFast owners in different regions maintain their own forks tailored to local needs:
+
+| Fork | Maintainer | Focus |
+|------|-----------|-------|
+| [vinfastownersorg-cyber/VFDashboard](https://github.com/vinfastownersorg-cyber/VFDashboard) | Association of VinFast Owners | North America, self-hosted (Render, Docker, Railway) |
+
+> Want to add your fork? Open an issue or PR!
 
 ## 🙏 Acknowledgments
 
