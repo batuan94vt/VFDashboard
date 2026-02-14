@@ -139,10 +139,10 @@ class VinFastAPI {
       // Authorization is now injected by Proxy
       "x-service-name": "CAPP",
       "x-app-version": "1.10.3",
-      "x-device-platform": "VFDashBoard",
-      "x-device-family": "Community",
-      "x-device-os-version": "1.0",
-      "x-device-locale": "en-US",
+      "x-device-platform": "android",
+      "x-device-family": "VFDashboard",
+      "x-device-os-version": "Community",
+      "x-device-locale": "vi-VN",
       "x-timezone": "Asia/Ho_Chi_Minh",
       "x-device-identifier": "vfdashboard-community-edition",
     };
@@ -161,6 +161,7 @@ class VinFastAPI {
       email,
       password,
       region: this.region,
+      rememberMe: this.rememberMe,
     };
 
     try {

@@ -11,8 +11,8 @@ export default function Login({ bgImage }) {
   const [regionDropdownOpen, setRegionDropdownOpen] = useState(false);
 
   useEffect(() => {
-    // Auto-redirect if already authenticated
-    if (api.accessToken) {
+    // Auto-redirect if already authenticated (check metadata cookie)
+    if (api.isLoggedIn) {
       window.location.href = "/";
     }
   }, []);
