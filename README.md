@@ -11,10 +11,10 @@
 
 > **Dashboard is fully operational!** Both X-HASH and X-HASH-2 authentication have been reverse engineered and implemented.
 >
-> ✅ **X-HASH + X-HASH-2**: Dual-layer API signing is working on all telemetry endpoints.
-> ✅ **Deployed**: Running on Cloudflare Pages with server-side proxy.
-> ⚠️ **Limitation**: SOH (State of Health) battery data is **no longer available** in the API response.
-> 📚 **Documentation**: [API Endpoints](./docs/api/API_ENDPOINTS.md) | [X-HASH Technical Docs](./docs/api/HASH_ANALYSIS_SUMMARY.md) | [Reverse Engineering Report](./docs/api/REVERSE_ENGINEERING_REPORT.md)
+> ✅ **X-HASH + X-HASH-2**: Dual-layer API signing is working on all telemetry endpoints.\
+> ✅ **Deployed**: Running on Cloudflare Pages with server-side proxy.\
+> ⚠️ **Limitation**: SOH (State of Health) battery data is **no longer available** in the API response.\
+> 📚 **Documentation**: [API Endpoints](./docs/api/API_ENDPOINTS.md) | [X-HASH Technical Docs](./docs/api/HASH_ANALYSIS_SUMMARY.md) | [Reverse Engineering Report](./docs/api/REVERSE_ENGINEERING_REPORT.md)\
 > 🌐 **Bilingual docs**: English at `docs/api/`, Vietnamese at `docs/api/vi/`
 
 ---
