@@ -55,7 +55,14 @@ function generateXHash(method, apiPath, vin, timestamp, secretKey) {
  *   5. HMAC-SHA256 with key "ConnectedCar@6521" (from FUN_0012758c)
  *   6. Base64 encode result
  */
-function generateXHash2({ platform, vinCode, identifier, path, method, timestamp }) {
+function generateXHash2({
+  platform,
+  vinCode,
+  identifier,
+  path,
+  method,
+  timestamp,
+}) {
   // Step 1: Strip leading "/" from path
   let normalizedPath = path;
   if (normalizedPath.startsWith("/")) {
@@ -131,7 +138,9 @@ export const ALL = async ({ request, params, cookies, locals }) => {
 
   // Only telemetry endpoints require X-HASH and X-HASH-2 signing.
   // Other endpoints (user-vehicle, vehicle-model) only need Bearer token.
-  const isTelemetryPath = apiPath.startsWith("ccaraccessmgmt/api/v1/telemetry/");
+  const isTelemetryPath = apiPath.startsWith(
+    "ccaraccessmgmt/api/v1/telemetry/",
+  );
 
   const proxyHeaders = {
     ...API_HEADERS, // standard headers
@@ -188,7 +197,9 @@ export const ALL = async ({ request, params, cookies, locals }) => {
     proxyHeaders["X-HASH"] = xHash;
     proxyHeaders["X-HASH-2"] = xHash2;
     proxyHeaders["X-TIMESTAMP"] = xTimestamp;
-    console.log(`[Proxy] Signed ${request.method} /${apiPath} with X-HASH + X-HASH-2`);
+    console.log(
+      `[Proxy] Signed ${request.method} /${apiPath} with X-HASH + X-HASH-2`,
+    );
   }
 
   if (vinHeader) proxyHeaders["x-vin-code"] = vinHeader;
@@ -208,7 +219,9 @@ export const ALL = async ({ request, params, cookies, locals }) => {
     const response = await fetch(targetUrl, init);
     const data = await response.text();
 
-    console.log(`[Proxy] ← ${response.status} (${data.length} bytes) for ${request.method} /${apiPath}`);
+    console.log(
+      `[Proxy] ← ${response.status} (${data.length} bytes) for ${request.method} /${apiPath}`,
+    );
     if (response.status >= 400) {
       console.log(`[Proxy] Error body: ${data.substring(0, 500)}`);
     }

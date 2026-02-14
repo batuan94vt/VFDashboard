@@ -208,14 +208,14 @@ X-HASH-2 is the second signing layer, implemented in native code (`libsecure.so`
 
 ### Required Headers (Updated)
 
-| Header | Description | Example |
-|--------|-------------|---------|
-| `X-HASH` | HMAC-SHA256 signature (Base64) | `u5B0xgcHtqNpGNST5Sw53ds5PvMhb/ApCUgZQ1glAh0=` |
-| `X-HASH-2` | Native HMAC-SHA256 signature (Base64) | `j6M6tf1Tpr+jldxYN5QHNIKXFe5X3vD6yrr+rTbAcVI=` |
-| `X-TIMESTAMP` | Unix timestamp (milliseconds) | `1771033156922` |
-| `X-VIN-CODE` | Vehicle Identification Number | `RLLVXXXXXXXXXXXXX71` |
-| `Authorization` | Bearer token from Auth0 login | `Bearer eyJhbG...` |
-| `x-device-platform` | **Must be `android`** (see notes) | `android` |
+| Header              | Description                           | Example                                        |
+| ------------------- | ------------------------------------- | ---------------------------------------------- |
+| `X-HASH`            | HMAC-SHA256 signature (Base64)        | `u5B0xgcHtqNpGNST5Sw53ds5PvMhb/ApCUgZQ1glAh0=` |
+| `X-HASH-2`          | Native HMAC-SHA256 signature (Base64) | `j6M6tf1Tpr+jldxYN5QHNIKXFe5X3vD6yrr+rTbAcVI=` |
+| `X-TIMESTAMP`       | Unix timestamp (milliseconds)         | `1771033156922`                                |
+| `X-VIN-CODE`        | Vehicle Identification Number         | `RLLVXXXXXXXXXXXXX71`                          |
+| `Authorization`     | Bearer token from Auth0 login         | `Bearer eyJhbG...`                             |
+| `x-device-platform` | **Must be `android`** (see notes)     | `android`                                      |
 
 ### Algorithm
 
@@ -268,7 +268,14 @@ Output:
 ```javascript
 import crypto from "crypto";
 
-function generateXHash2({ platform, vinCode, identifier, path, method, timestamp }) {
+function generateXHash2({
+  platform,
+  vinCode,
+  identifier,
+  path,
+  method,
+  timestamp,
+}) {
   let normalizedPath = path;
   if (normalizedPath.startsWith("/")) {
     normalizedPath = normalizedPath.substring(1);
@@ -289,14 +296,14 @@ function generateXHash2({ platform, vinCode, identifier, path, method, timestamp
 
 ### Key Differences: X-HASH vs X-HASH-2
 
-| Aspect | X-HASH | X-HASH-2 |
-|--------|--------|----------|
-| Secret Key | `Vinfast@2025` (AES-encrypted in APK) | `ConnectedCar@6521` (byte-by-byte in native .so) |
-| Message format | `method_path_[vin_]secret_timestamp` | `platform_[vin_]identifier_path_method_timestamp` |
-| Path format | With leading `/` | Without leading `/`, `/` replaced by `_` |
-| Secret in message | Yes (included in message) | No (only used as HMAC key) |
-| Source | Java (HMACInterceptor) | Native C (libsecure.so via JNI) |
-| Required for | Telemetry endpoints only | Telemetry endpoints only |
+| Aspect            | X-HASH                                | X-HASH-2                                          |
+| ----------------- | ------------------------------------- | ------------------------------------------------- |
+| Secret Key        | `Vinfast@2025` (AES-encrypted in APK) | `ConnectedCar@6521` (byte-by-byte in native .so)  |
+| Message format    | `method_path_[vin_]secret_timestamp`  | `platform_[vin_]identifier_path_method_timestamp` |
+| Path format       | With leading `/`                      | Without leading `/`, `/` replaced by `_`          |
+| Secret in message | Yes (included in message)             | No (only used as HMAC key)                        |
+| Source            | Java (HMACInterceptor)                | Native C (libsecure.so via JNI)                   |
+| Required for      | Telemetry endpoints only              | Telemetry endpoints only                          |
 
 ### Important Notes
 
@@ -313,18 +320,18 @@ function generateXHash2({ platform, vinCode, identifier, path, method, timestamp
 
 Headers that VFDashboard currently uses (verified working):
 
-| Header | Value | Validated by Server? |
-|--------|-------|:---:|
-| `x-device-platform` | `android` | **Yes** — required `android` |
-| `x-device-family` | `VFDashboard` | No — custom values OK |
-| `x-device-os-version` | `Community` | No — custom values OK |
-| `x-device-identifier` | `vfdashboard-community-edition` | No* |
-| `x-service-name` | `CAPP` | Unknown |
-| `x-app-version` | `1.10.3` | Unknown |
-| `x-device-locale` | `vi-VN` | No |
-| `x-timezone` | `Asia/Ho_Chi_Minh` | No |
+| Header                | Value                           |     Validated by Server?     |
+| --------------------- | ------------------------------- | :--------------------------: |
+| `x-device-platform`   | `android`                       | **Yes** — required `android` |
+| `x-device-family`     | `VFDashboard`                   |    No — custom values OK     |
+| `x-device-os-version` | `Community`                     |    No — custom values OK     |
+| `x-device-identifier` | `vfdashboard-community-edition` |             No\*             |
+| `x-service-name`      | `CAPP`                          |           Unknown            |
+| `x-app-version`       | `1.10.3`                        |           Unknown            |
+| `x-device-locale`     | `vi-VN`                         |              No              |
+| `x-timezone`          | `Asia/Ho_Chi_Minh`              |              No              |
 
-> *`x-device-identifier` is used in the X-HASH-2 message, but the server accepts custom values.
+> \*`x-device-identifier` is used in the X-HASH-2 message, but the server accepts custom values.
 
 ---
 

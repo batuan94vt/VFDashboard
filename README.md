@@ -107,8 +107,8 @@ We welcome contributions from the community!
 
 VinFast owners in different regions maintain their own forks tailored to local needs:
 
-| Fork | Maintainer | Focus |
-|------|-----------|-------|
+| Fork                                                                                        | Maintainer                    | Focus                                                |
+| ------------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------- |
 | [vinfastownersorg-cyber/VFDashboard](https://github.com/vinfastownersorg-cyber/VFDashboard) | Association of VinFast Owners | North America, self-hosted (Render, Docker, Railway) |
 
 > Want to add your fork? Open an issue or PR!

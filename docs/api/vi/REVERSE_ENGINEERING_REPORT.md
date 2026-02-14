@@ -185,6 +185,7 @@ xhash = base64(hmac_sha256(secret, message))
 Sau khi VinFast cập nhật server, telemetry API bắt đầu trả về `{"code":327681,"message":"Invalid request signature"}` dù X-HASH đúng. Phân tích APK cho thấy có thêm header `X-HASH-2` được tạo bởi `CryptoInterceptor` gọi native method `VFCrypto.signRequest()` trong `libsecure.so`.
 
 **OkHttp Interceptor chain:**
+
 ```
 TokenInterceptor → HMACInterceptor (X-HASH) → CryptoInterceptor (X-HASH-2)
 ```
@@ -256,15 +257,15 @@ $GHIDRA_HOME/support/analyzeHeadless /tmp ghidra_project \
 
 **Key functions:**
 
-| Function | Address | Purpose |
-|----------|---------|---------|
-| `Java_com_lxquyen_secure_VFCrypto_signRequest` | 0x00128310 | JNI entry point |
-| `FUN_00127a64` | 0x00127a64 | Message string construction |
-| `FUN_00127914` | 0x00127914 | HMAC-SHA256 signing |
-| `FUN_0012758c` | 0x0012758c | Secret key construction (byte-by-byte) |
-| `FUN_0012826c` | 0x0012826c | tolower() (char OR 0x20) |
-| `FUN_001270b4` | 0x001270b4 | Anti-tamper: APK signature check |
-| `FUN_001271f4` | 0x001271f4 | Anti-tamper: Frida/Xposed detection |
+| Function                                       | Address    | Purpose                                |
+| ---------------------------------------------- | ---------- | -------------------------------------- |
+| `Java_com_lxquyen_secure_VFCrypto_signRequest` | 0x00128310 | JNI entry point                        |
+| `FUN_00127a64`                                 | 0x00127a64 | Message string construction            |
+| `FUN_00127914`                                 | 0x00127914 | HMAC-SHA256 signing                    |
+| `FUN_0012758c`                                 | 0x0012758c | Secret key construction (byte-by-byte) |
+| `FUN_0012826c`                                 | 0x0012826c | tolower() (char OR 0x20)               |
+| `FUN_001270b4`                                 | 0x001270b4 | Anti-tamper: APK signature check       |
+| `FUN_001271f4`                                 | 0x001271f4 | Anti-tamper: Frida/Xposed detection    |
 
 ---
 
@@ -337,6 +338,7 @@ param[16] = 0x31; // 1
 ```
 
 **Anti-detection measures trong libsecure.so:**
+
 - Key xây dựng từng byte, không phải string literal → grep/strings không tìm được
 - Có thêm `clock()` và `time()` checks giữa các byte (anti-debug timing)
 - APK signature verification (reject re-signed APKs)
@@ -380,15 +382,16 @@ HMAC_CTX_free(ctx);
 
 ```javascript
 // Node.js verification
-const crypto = require('crypto');
+const crypto = require("crypto");
 
-const message = "android_rllvxxxxxxxxxxxxx71_vfdashboard-community-edition_" +
-                "ccaraccessmgmt_api_v1_telemetry_app_ping_post_1771033156922";
+const message =
+  "android_rllvxxxxxxxxxxxxx71_vfdashboard-community-edition_" +
+  "ccaraccessmgmt_api_v1_telemetry_app_ping_post_1771033156922";
 const key = "ConnectedCar@6521";
 
-const hmac = crypto.createHmac('sha256', key);
+const hmac = crypto.createHmac("sha256", key);
 hmac.update(message);
-const hash2 = hmac.digest('base64');
+const hash2 = hmac.digest("base64");
 // Result matches server-accepted value ✓
 
 // Server response: 200 OK (7835 bytes telemetry data)
@@ -398,12 +401,12 @@ const hash2 = hmac.digest('base64');
 
 ### Tổng kết X-HASH-2
 
-| Phase | Công cụ | Mục đích | Kết quả |
-|-------|---------|----------|---------|
-| 1 | apktool + smali | Tìm interceptor chain | CryptoInterceptor → VFCrypto.signRequest() |
-| 2 | Ghidra (headless) | Decompile ARM64 .so | 51K lines C, tìm message format |
-| 3 | Ghidra analysis | Extract secret key | `ConnectedCar@6521` (byte-by-byte) |
-| 4 | Node.js | Verify | Match 100%, server trả 200 OK |
+| Phase | Công cụ           | Mục đích              | Kết quả                                    |
+| ----- | ----------------- | --------------------- | ------------------------------------------ |
+| 1     | apktool + smali   | Tìm interceptor chain | CryptoInterceptor → VFCrypto.signRequest() |
+| 2     | Ghidra (headless) | Decompile ARM64 .so   | 51K lines C, tìm message format            |
+| 3     | Ghidra analysis   | Extract secret key    | `ConnectedCar@6521` (byte-by-byte)         |
+| 4     | Node.js           | Verify                | Match 100%, server trả 200 OK              |
 
 **Key insights:**
 
