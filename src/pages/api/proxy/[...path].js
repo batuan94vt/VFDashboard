@@ -6,6 +6,10 @@ import crypto from "crypto";
 // Restrict proxy usage to known VinFast API namespaces used by the dashboard.
 const ALLOWED_PATH_PREFIXES = [
   "ccarusermgnt/api/v1/user-vehicle",
+  "ccarusermgnt/api/v1/service-history",
+  "ccarusermgnt/api/v1/service-appointments",
+  "ccarbookingservice/api/v1/c-app/appointment/",
+  "ccarbookingservice/api/v1/c-app/showroom/",
   "modelmgmt/api/v2/vehicle-model/",
   "ccaraccessmgmt/api/v1/telemetry/",
   "ccarcharging/api/v1/stations/",

@@ -366,21 +366,25 @@ function filterLabel(store) {
 }
 
 // --- Animated stat value ---
-function AnimatedStat({ label, value, colorClass, bgClass }) {
+function AnimatedStat({ label, value, colorClass, bgClass, isLoading }) {
   return (
     <div
-      className={`${bgClass} rounded-xl p-2.5 text-center transition-all duration-500`}
+      className={`${bgClass} rounded-xl p-2.5 text-center transition-all duration-500 min-h-[52px] flex flex-col justify-center`}
     >
       <p
         className={`text-[10px] font-bold ${colorClass.replace("800", "600")} uppercase`}
       >
         {label}
       </p>
-      <p
-        className={`text-sm font-extrabold ${colorClass} transition-all duration-300`}
-      >
-        {value}
-      </p>
+      {isLoading ? (
+        <div className="h-4 w-16 bg-gray-200/50 animate-pulse rounded mx-auto mt-1"></div>
+      ) : (
+        <p
+          className={`text-sm font-extrabold ${colorClass} transition-all duration-300`}
+        >
+          {value}
+        </p>
+      )}
     </div>
   );
 }
@@ -525,7 +529,7 @@ export default function ChargingHistory({ inline = false }) {
       <FilterBar store={store} />
 
       {/* Summary bar */}
-      {safeSessions.length > 0 && (
+      {(safeSessions.length > 0 || store.isLoading) && (
         <div
           className={`grid gap-2 mb-4 shrink-0 animate-in fade-in duration-500 ${totalIdleFee > 0 ? "grid-cols-3" : "grid-cols-2"}`}
         >
@@ -534,24 +538,28 @@ export default function ChargingHistory({ inline = false }) {
             value={`${totalKWh.toFixed(0)} kWh`}
             colorClass="text-green-800"
             bgClass="bg-green-50"
+            isLoading={store.isLoading}
           />
           <AnimatedStat
             label="Plugged"
             value={formatTotalTime(totalPluggedMs)}
             colorClass="text-purple-800"
             bgClass="bg-purple-50"
+            isLoading={store.isLoading}
           />
           <AnimatedStat
             label="Cost"
             value={formatCurrency(totalCost)}
             colorClass="text-blue-800"
             bgClass="bg-blue-50"
+            isLoading={store.isLoading}
           />
           <AnimatedStat
             label="Saved"
             value={formatCurrency(totalSaved)}
             colorClass="text-amber-800"
             bgClass="bg-amber-50"
+            isLoading={store.isLoading}
           />
           {totalIdleFee > 0 && (
             <AnimatedStat
@@ -559,6 +567,7 @@ export default function ChargingHistory({ inline = false }) {
               value={formatCurrency(totalIdleFee)}
               colorClass="text-orange-800"
               bgClass="bg-orange-50"
+              isLoading={store.isLoading}
             />
           )}
           {totalIdleFee > 0 && (
@@ -567,6 +576,7 @@ export default function ChargingHistory({ inline = false }) {
               value={`${totalIdleMins}m`}
               colorClass="text-red-800"
               bgClass="bg-red-50"
+              isLoading={store.isLoading}
             />
           )}
         </div>
