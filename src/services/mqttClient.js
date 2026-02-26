@@ -122,7 +122,6 @@ export class MqttTelemetryClient {
     this.credentialExpiry = 0;
     this.heartbeatTimer = null;
     this.reconnectTimer = null;
-    this.endpointIndex = 0;
     this.onTelemetryUpdate = null;
     this.onConnected = null;
     this.pathToAlias = buildDeviceKeyToAlias(staticAliasMap);
@@ -138,7 +137,6 @@ export class MqttTelemetryClient {
     if (this.client) {
       this._cleanup();
     }
-    this.endpointIndex = 0;
 
     this.vin = vin;
     setMqttStatus("connecting");
@@ -147,8 +145,7 @@ export class MqttTelemetryClient {
       await this._ensureCredentials();
 
       const mqttConfig = MQTT_CONFIG[DEFAULT_REGION] || MQTT_CONFIG.vn;
-      const mqttHost = this._nextMqttHost(mqttConfig);
-      await this._createClient(vin, mqttHost, mqttConfig, connectToken, true);
+      await this._createClient(vin, mqttConfig.endpoint, mqttConfig, connectToken, true);
     } catch (e) {
       console.error("[MQTT] Connection failed:", e);
       setMqttStatus("error", e.message);
@@ -183,9 +180,8 @@ export class MqttTelemetryClient {
 
         await this._ensureCredentials();
         const mqttConfig = MQTT_CONFIG[DEFAULT_REGION] || MQTT_CONFIG.vn;
-        const mqttHost = this._nextMqttHost(mqttConfig);
         const vin = this.vin;
-        await this._createClient(vin, mqttHost, mqttConfig, token, false);
+        await this._createClient(vin, mqttConfig.endpoint, mqttConfig, token, false);
       } catch (e) {
         console.error("[MQTT] Reconnect failed:", e);
         setMqttStatus("error", e.message);
@@ -223,10 +219,40 @@ export class MqttTelemetryClient {
   }
 
   async switchVin(newVin) {
-    this._connectToken += 1;
+    // Fast path: already connected to this VIN
+    if (this.vin === newVin && this.client?.connected) return;
+
+    const connectToken = ++this._connectToken;
     this._destroyed = false;
-    this._cleanup();
-    await this.connect(newVin);
+
+    // Stop heartbeat + clear reconnect timer (but don't null vin yet)
+    this._stopHeartbeat();
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    // Destroy old client
+    if (this.client) {
+      try {
+        this.client.removeAllListeners();
+        this.client.end(true);
+      } catch {}
+      this.client = null;
+    }
+
+    this.vin = newVin;
+    setMqttStatus("connecting");
+
+    try {
+      await this._ensureCredentials(); // Reuses cached creds (fast path)
+      const mqttConfig = MQTT_CONFIG[DEFAULT_REGION] || MQTT_CONFIG.vn;
+      await this._createClient(newVin, mqttConfig.endpoint, mqttConfig, connectToken, false);
+    } catch (e) {
+      console.error("[MQTT] Switch failed:", e);
+      setMqttStatus("error", e.message);
+      this._scheduleReconnect();
+    }
   }
 
   async _ensureCredentials() {
@@ -384,35 +410,35 @@ export class MqttTelemetryClient {
     return this.client;
   }
 
-  _nextMqttHost(mqttConfig) {
-    const hosts = [mqttConfig.endpoint, mqttConfig.fallbackEndpoint]
-      .filter(Boolean)
-      .filter((host, index, arr) => arr.indexOf(host) === index);
-
-    if (hosts.length === 0) {
-      return mqttConfig.endpoint;
-    }
-
-    const host = hosts[this.endpointIndex % hosts.length];
-    this.endpointIndex = (this.endpointIndex + 1) % hosts.length;
-    return host;
+  _getTopics(vin) {
+    return [
+      `/mobile/${vin}/push`,
+      `monitoring/server/${vin}/push`,
+      `/server/${vin}/remctrl`,
+    ];
   }
 
   _subscribe(vin) {
     if (!this.client) return;
 
-    const topics = [
-      `/mobile/${vin}/push`,
-      `monitoring/server/${vin}/push`,
-      `/server/${vin}/remctrl`,
-    ];
-
-    topics.forEach((topic) => {
+    this._getTopics(vin).forEach((topic) => {
       this.client.subscribe(topic, { qos: 1 }, (err) => {
         if (err) {
           console.error(`[MQTT] Subscribe failed for ${topic}:`, err);
         } else {
           console.log(`[MQTT] Subscribed to ${topic}`);
+        }
+      });
+    });
+  }
+
+  _unsubscribe(vin) {
+    if (!this.client) return;
+
+    this._getTopics(vin).forEach((topic) => {
+      this.client.unsubscribe(topic, (err) => {
+        if (err) {
+          console.warn(`[MQTT] Unsubscribe failed for ${topic}:`, err);
         }
       });
     });

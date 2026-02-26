@@ -480,12 +480,10 @@ export const switchVehicle = async (targetVin: string) => {
     isRefreshing: !hasTelemetry, // Only show loading if we don't have telemetry
   });
 
-  // 4. Switch MQTT subscription to new VIN
-  try {
-    await getMqttClient().switchVin(targetVin);
-  } catch (err) {
-    console.warn("switchVehicle: MQTT switch failed", err);
-  }
+  // 4. Switch MQTT subscription to new VIN (non-blocking — cached data already shown)
+  getMqttClient()
+    .switchVin(targetVin)
+    .catch((err) => console.warn("switchVehicle: MQTT switch failed", err));
 
   // 5. Trigger Background Refresh (Only if no telemetry in cache)
   if (!hasTelemetry) {

@@ -94,8 +94,10 @@ export default function DashboardController({ vin: initialVin }) {
     };
   }, [initialVin]);
 
-  // Polling Effect (fallback when MQTT is connected, primary otherwise)
+  // Polling Effect — reactive to MQTT status changes
   useEffect(() => {
+    let interval = null;
+
     const poll = async () => {
       const currentVin = vehicleStore.get().vin || initialVin;
       if (!currentVin || pollingInFlight.current || !isMounted.current) return;
@@ -108,21 +110,20 @@ export default function DashboardController({ vin: initialVin }) {
       }
     };
 
-    // Use longer interval when MQTT is connected
-    const mqttConnected = mqttStore.get().status === "connected";
-    const intervalMs = mqttConnected ? MQTT_FALLBACK_INTERVAL : REFRESH_INTERVAL;
+    const setupPolling = () => {
+      if (interval) clearInterval(interval);
+      const mqttConnected = mqttStore.get().status === "connected";
+      const intervalMs = mqttConnected ? MQTT_FALLBACK_INTERVAL : REFRESH_INTERVAL;
+      interval = setInterval(() => poll(), intervalMs);
+    };
 
-    const interval = setInterval(() => {
-      poll();
-    }, intervalMs);
+    setupPolling();
 
-    // Re-evaluate interval when MQTT status changes
-    const unsubscribe = mqttStore.subscribe(() => {
-      // Status change will cause re-render via store subscription
-    });
+    // Re-evaluate polling interval when MQTT status changes
+    const unsubscribe = mqttStore.subscribe(setupPolling);
 
     return () => {
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
       unsubscribe();
     };
   }, [initialVin]);

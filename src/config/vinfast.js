@@ -114,7 +114,6 @@ export const FALLBACK_TELEMETRY_RESOURCES = [
 export const MQTT_CONFIG = {
   vn: {
     endpoint: "prod.iot.connected-car.vinfast.vn",
-    fallbackEndpoint: "a192815p17rdy4-ats.iot.ap-southeast-1.amazonaws.com",
     region: "ap-southeast-1",
     cognitoPoolId: "ap-southeast-1:c6537cdf-92dd-4b1f-99a8-9826f153142a",
     cognitoLoginProvider: "vin3s.au.auth0.com",

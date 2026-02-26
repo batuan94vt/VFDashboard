@@ -147,6 +147,7 @@ Here are some features the community would love to build -- features that would 
 - **Advanced trip planning** with charging station routing optimized for VinFast EVs
 - **Custom widgets and watch complications** for real-time vehicle status
 - **Energy management** integrations with solar panels and home batteries
+- **Proactive charging notifications** -- alert owners before the battery is fully charged, with Live Activities (iOS) and Live Updates (Android) on the lock screen and Dynamic Island so drivers can monitor charging status at a glance (with an option to filter DC-only, since AC charging doesn't incur idle fees)
 - **Community-driven safety features** like shared road hazard reporting
 - **Accessibility tools** for owners with different needs
 
