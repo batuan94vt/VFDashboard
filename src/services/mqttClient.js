@@ -131,6 +131,8 @@ export class MqttTelemetryClient {
     this.pathToAlias = buildDeviceKeyToAlias(staticAliasMap);
     this._destroyed = false;
     this._connectToken = 0;
+    this._streamListeners = null;
+    this._heartbeatEnabled = false;
   }
 
   async connect(vin) {
@@ -146,13 +148,14 @@ export class MqttTelemetryClient {
       return;
     }
 
-    const connectToken = ++this._connectToken;
+    let connectToken = ++this._connectToken;
 
     this._reconnectAttempts = 0;
     this.endpointIndex = 0;
 
     if (this.client) {
-      this._cleanup(true);
+      const closedToken = this._closeCurrentConnection();
+      connectToken = closedToken || connectToken;
     }
 
     this.vin = vin;
@@ -195,24 +198,18 @@ export class MqttTelemetryClient {
 
       console.log("[MQTT] Attempting reconnect...");
       setMqttStatus("connecting");
-
-      // Clean up old client
-      if (this.client) {
-        try {
-          this.client.end(true);
-        } catch {}
-        this.client = null;
-      }
+      const reconnectToken =
+        this._closeCurrentConnection() || ++this._connectToken;
 
       // Reconnect with fresh signed URL
       try {
-        if (this._connectToken !== token || this._destroyed || !this.vin) return;
+        if (this._connectToken !== reconnectToken || this._destroyed || !this.vin) return;
 
         await this._ensureCredentials();
         const mqttConfig = MQTT_CONFIG[DEFAULT_REGION] || MQTT_CONFIG.vn;
         const mqttHost = this._nextMqttHost(mqttConfig);
         const vin = this.vin;
-        await this._createClient(vin, mqttHost, mqttConfig, token, false);
+        await this._createClient(vin, mqttHost, mqttConfig, reconnectToken, false);
       } catch (e) {
         console.error("[MQTT] Reconnect failed:", e);
         setMqttStatus("error", e.message);
@@ -235,13 +232,7 @@ export class MqttTelemetryClient {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    if (this.client) {
-      try {
-        this.client.removeAllListeners();
-        this.client.end(true);
-      } catch {}
-      this.client = null;
-    }
+    this._closeCurrentConnection();
     if (!preserveSubscriptions) {
       this.subscribedVins.clear();
       this.subscribedTopics.clear();
@@ -253,6 +244,32 @@ export class MqttTelemetryClient {
 
   destroy() {
     this.disconnect();
+  }
+
+  _closeCurrentConnection() {
+    if (!this.client) {
+      return null;
+    }
+
+    if (this._streamListeners) {
+      const { stream, closeHandler, errorHandler } = this._streamListeners;
+      if (stream) {
+        if (closeHandler) stream.removeEventListener("close", closeHandler);
+        if (errorHandler) stream.removeEventListener("error", errorHandler);
+      }
+      this._streamListeners = null;
+    }
+
+    try {
+      this.client.removeAllListeners();
+    } catch {}
+
+    const nextToken = ++this._connectToken;
+    try {
+      this.client.end(true);
+    } catch {}
+    this.client = null;
+    return nextToken;
   }
 
   async switchVin(newVin) {
@@ -333,7 +350,8 @@ export class MqttTelemetryClient {
       mqttConfig.region,
       this.credentials,
     );
-    const clientId = vin.substring(0, 20);
+    const safeVin = vin || "vehicle";
+    const clientId = `${safeVin.substring(0, 12)}-${connectToken}`;
 
     // Disable auto-reconnect — we handle it manually to support async URL signing.
     this.client = mqtt.connect(url, {
@@ -354,7 +372,6 @@ export class MqttTelemetryClient {
       );
       setMqttStatus("connected");
       this._restoreSubscriptions();
-      this._startHeartbeat(vin, connectToken);
       if (typeof this.onConnected === "function") {
         console.log(`[MQTT] onConnected callback for ${vin}`);
         this.onConnected(this.vin);
@@ -405,7 +422,7 @@ export class MqttTelemetryClient {
     });
 
     if (this.client.stream && this.client.stream.addEventListener) {
-      this.client.stream.addEventListener("close", (ev) => {
+      const nativeCloseHandler = (ev) => {
         if (this._connectToken !== connectToken || this._destroyed) return;
         console.warn(
           `[MQTT] ${isInitialConnect ? "Native WS close" : "Reconnect native WS close"}`,
@@ -416,12 +433,20 @@ export class MqttTelemetryClient {
           "wasClean",
           ev?.wasClean,
         );
-      });
-
-      this.client.stream.addEventListener("error", (ev) => {
+      };
+      const nativeErrorHandler = (ev) => {
         if (this._connectToken !== connectToken || this._destroyed) return;
         console.error("[MQTT] Native WS error:", ev);
-      });
+      };
+
+      this._streamListeners = {
+        stream: this.client.stream,
+        closeHandler: nativeCloseHandler,
+        errorHandler: nativeErrorHandler,
+      };
+
+      this.client.stream.addEventListener("close", nativeCloseHandler);
+      this.client.stream.addEventListener("error", nativeErrorHandler);
     }
 
     return this.client;
@@ -457,7 +482,6 @@ export class MqttTelemetryClient {
     this.subscribedVins.add(vin);
 
     this._subscribeForVin(vin);
-    this._startHeartbeat(vin, this._connectToken);
     if (isVinChanged && typeof this.onConnected === "function") {
       this.onConnected(vin);
     }
@@ -508,6 +532,10 @@ export class MqttTelemetryClient {
   }
 
   _startHeartbeat(vin, connectToken) {
+    if (!this._heartbeatEnabled) {
+      return;
+    }
+
     this._stopHeartbeat();
     const mqttConfig = MQTT_CONFIG[DEFAULT_REGION] || MQTT_CONFIG.vn;
     const interval = mqttConfig.heartbeatInterval || 120000;
@@ -641,8 +669,8 @@ export class MqttTelemetryClient {
 
       const parsed = parseTelemetry(telemetryMessages, this.pathToAlias);
 
-      if (Object.keys(parsed).length > 0 && this.onTelemetryUpdate) {
-        this.onTelemetryUpdate(this.vin, parsed);
+      if (this.onTelemetryUpdate) {
+        this.onTelemetryUpdate(this.vin, parsed, telemetryMessages);
       }
     } catch (e) {
       console.error("[MQTT] Message parse error:", e);
