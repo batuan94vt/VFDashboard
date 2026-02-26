@@ -96,11 +96,11 @@ It is an unofficial, open-source project created by the community for educationa
 
 ### Mobile & Detail View
 
-<div style="display: flex; gap: 20px; flex-wrap: wrap;">
-  <img src="public/mobile-vf3.webp" alt="Mobile Dashboard - VF3" width="280" />
-  <img src="public/mobile-vf9-energy.webp" alt="Mobile Dashboard - VF9 Energy" width="280" />
-  <img src="public/mobile-vf3-charging.webp" alt="Mobile - VF3 Charging History" width="280" />
-</div>
+<table><tr>
+  <td><img src="public/mobile-vf3.webp" alt="Mobile Dashboard - VF3" width="280" /></td>
+  <td><img src="public/mobile-vf9-energy.webp" alt="Mobile Dashboard - VF9 Energy" width="280" /></td>
+  <td><img src="public/mobile-vf3-charging.webp" alt="Mobile - VF3 Charging History" width="280" /></td>
+</tr></table>
 
 ## 🤝 Contributing
 
