@@ -1396,24 +1396,179 @@ export const DEEP_SCAN_GROUPS = {
       },
     ],
   },
+  // ========================================
+  // 19. REAL-TIME SENSOR DATA
+  // ========================================
+  REALTIME_BUS: {
+    id: "realtime_bus",
+    label: "Real-time Sensor Data",
+    icon: "cpu",
+    description: "Dữ liệu cảm biến thời gian thực từ bus CAN",
+    priority: 20,
+    aliases: [],
+    fields: [],
+  },
+
+  // ========================================
+  // 20. DASHBOARD INDICATORS (TELLTALES)
+  // ========================================
+  TELLTALES: {
+    id: "telltales",
+    label: "Dashboard Indicators",
+    icon: "lightbulb",
+    description: "Đèn báo bảng điều khiển",
+    priority: 21,
+    aliases: [],
+    fields: [],
+  },
+
+  // ========================================
+  // 21. DRIVER ASSISTANCE (ADAS)
+  // ========================================
+  ADAS: {
+    id: "adas",
+    label: "Driver Assistance (ADAS)",
+    icon: "shield",
+    description: "Hỗ trợ lái xe nâng cao",
+    priority: 22,
+    aliases: [],
+    fields: [],
+  },
 };
 
-// Helper: Get all groups sorted by priority
-export const getSortedGroups = () => {
-  return Object.values(DEEP_SCAN_GROUPS).sort(
-    (a, b) => a.priority - b.priority,
-  );
+// ── Prefix → Group ID mapping ───────────────────────────────────────
+// Used by TelemetryDrawer to assign ungrouped aliases to groups.
+// Order matters: longer/more-specific prefixes MUST come first.
+export const ALIAS_PREFIX_TO_GROUP = {
+  // Battery / BMS
+  VEHICLE_STATUS_HV_BATTERY: "battery_main",
+  VEHICLE_STATUS_LV_BATTERY: "battery_12v",
+  VEHICLE_STATUS_REMAINING: "battery_main",
+  BMS_STATUS: "battery_main",
+  BATTERY_LEASING: "connectivity",
+
+  // Charging
+  CHARGE_CONTROL: "charging",
+  CHARGING_STATUS: "charging",
+  PNC_INFORMATION: "charging",
+  REMOTE_CONTROL_CHARGE_PORT: "charging",
+
+  // Vehicle Status
+  VEHICLE_STATUS_FRONT_LEFT_TIRE: "tires",
+  VEHICLE_STATUS_FRONT_RIGHT_TIRE: "tires",
+  VEHICLE_STATUS_REAR_LEFT_TIRE: "tires",
+  VEHICLE_STATUS_REAR_RIGHT_TIRE: "tires",
+  VEHICLE_STATUS_AMBIENT: "climate",
+  VEHICLE_STATUS_INTERIOR: "climate",
+  VEHICLE_STATUS: "vehicle_general",
+
+  // Doors
+  DOOR_AJAR: "doors",
+  DOOR_BONNET: "doors",
+  DOOR_TRUNK: "doors",
+  REMOTE_CONTROL_DOOR: "doors",
+  REMOTE_CONTROL_BONNET: "doors",
+
+  // Windows
+  REMOTE_CONTROL_WINDOW: "windows",
+  WINDOW: "windows",
+
+  // Climate
+  CLIMATE_INFORMATION: "climate",
+  CLIMATE_CONTROL: "climate",
+  CLIMATE_SCHEDULE: "climate",
+
+  // Modes
+  CAMP_MODE: "special_modes",
+  PET_MODE: "special_modes",
+  VALET_MODE: "special_modes",
+  SENTRY_MODE: "special_modes",
+
+  // Lights
+  LIGHT_: "lights",
+
+  // Safety
+  VEHICLE_CRASH: "safety",
+  SEAT_BELT: "safety",
+  ECALL_INFO: "safety",
+  IMMOBILIZATION: "safety",
+  INTRUSION: "safety",
+
+  // Warnings
+  VEHICLE_WARNINGS: "warnings",
+  DTCS_RECORD: "warnings",
+
+  // Trips
+  TRIPS_INFORMATION: "trips",
+  DRIVING_STATISTICS: "trips",
+
+  // Location
+  LOCATION: "location",
+  ISA_MAP: "location",
+
+  // Firmware
+  FIRMWARE: "firmware",
+  FOTA: "firmware",
+  ESYNC: "firmware",
+  VERSION_INFO: "firmware",
+  TBOX: "firmware",
+
+  // ECU Modules
+  ECUS_INFORMATION: "ecu_modules",
+  VINFAST_ECU: "ecu_modules",
+
+  // Identity
+  VINFAST_VEHICLE: "identity",
+
+  // Connectivity / Services
+  CAPP_PAIRING: "connectivity",
+  CCARSERVICE: "connectivity",
+  DATA_PRIVACY: "connectivity",
+  NETWORK_ACCESS: "connectivity",
+  CYBERSECURITY: "connectivity",
+  TELEMATICS_LOG: "connectivity",
+  MHU_ACCESS: "connectivity",
+  DATABASE_EXCHANGE: "connectivity",
+  REMOTE_DIAGNOCTICS: "connectivity",
+  ASSUARANCE_SERVICE: "connectivity",
+
+  // Real-time bus sensor data
+  REALTIME_BUS: "realtime_bus",
+
+  // Dashboard indicators
+  TELLTALES: "telltales",
+
+  // Driver assistance
+  ADAS: "adas",
+  DRIVER_ASSISTANCE: "adas",
+  VISION_SNAPSHOT: "adas",
+
+  // Remote control (general fallback — after specific ones above)
+  REMOTE_CONTROL: "vehicle_general",
 };
 
-// Helper: Get group by alias
-export const getGroupByAlias = (alias) => {
-  for (const group of Object.values(DEEP_SCAN_GROUPS)) {
-    if (group.aliases.includes(alias)) {
-      return group;
+// ── Pre-computed caches (built once at module load) ──────────────────
+
+// Sorted groups cache — avoids re-sorting on every call
+const _sortedGroups = Object.values(DEEP_SCAN_GROUPS).sort(
+  (a, b) => a.priority - b.priority,
+);
+
+// O(1) alias → group lookup map (replaces O(n×m) iteration)
+const _aliasToGroup = new Map();
+for (const group of Object.values(DEEP_SCAN_GROUPS)) {
+  for (const alias of group.aliases) {
+    if (!_aliasToGroup.has(alias)) {
+      _aliasToGroup.set(alias, group);
     }
   }
-  return null;
-};
+}
+
+// Helper: Get all groups sorted by priority (cached)
+export const getSortedGroups = () => _sortedGroups;
+
+// Helper: Get group by alias — O(1) lookup
+export const getGroupByAlias = (alias) => _aliasToGroup.get(alias) || null;
 
 // Helper: Get all aliases
 export const getAllAliases = () => {

@@ -1,7 +1,7 @@
 # VinFast Dashboard - VF9 Club Edition
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Node.js](https://img.shields.io/badge/Node.js-23%2B-green)
+![Node.js](https://img.shields.io/badge/Node.js-22%2B-green)
 ![Status](https://img.shields.io/badge/Status-Active-brightgreen)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
@@ -9,13 +9,14 @@
 
 ## 🔄 **Status Update** (February 2026)
 
-> **Dashboard is fully operational with real-time MQTT telemetry!** Both X-HASH and X-HASH-2 authentication have been reverse engineered and implemented. Live vehicle data now streams via MQTT over WebSocket.
+> **Dashboard is fully operational with real-time MQTT telemetry!** All vehicle data streams live via MQTT over WebSocket — first data arrives ~500ms after connect.
 >
-> ✅ **X-HASH + X-HASH-2**: Dual-layer API signing is working on all telemetry endpoints.\
-> ✅ **MQTT Live Telemetry**: Real-time data streaming via AWS IoT Core (battery, doors, tires, location, speed).\
-> ✅ **Deployed**: Running on Cloudflare Pages with multi-proxy failover for 429 rate limiting.\
-> ✅ **SOH Data**: State of Health battery data is available again in the API response.\
-> 📚 **Documentation**: [API Endpoints](./docs/api/API_ENDPOINTS.md) | [X-HASH Technical Docs](./docs/api/HASH_ANALYSIS_SUMMARY.md) | [Reverse Engineering Report](./docs/api/REVERSE_ENGINEERING_REPORT.md) | [MQTT Telemetry](./docs/api/MQTT_TELEMETRY.md)\
+> ✅ **MQTT Live Telemetry**: Real-time data via AWS IoT Core (battery, doors, tires, location, speed, charging).\
+> ✅ **X-HASH + X-HASH-2**: Dual-layer API signing on all protected endpoints.\
+> ✅ **Multi-Vehicle**: Instant switching between vehicles with cached telemetry.\
+> ✅ **Charging History**: Full session history with smart filtering (PAGE_SIZE=2000).\
+> ✅ **Deep Scan**: Progressive telemetry viewer with crowdsourced KV aliases.\
+> 📚 **Documentation**: [API Endpoints](./docs/api/API_ENDPOINTS.md) | [X-HASH Technical Docs](./docs/api/HASH_ANALYSIS_SUMMARY.md) | [MQTT Telemetry](./docs/api/MQTT_TELEMETRY.md)\
 > 🌐 **Bilingual docs**: English at `docs/api/`, Vietnamese at `docs/api/vi/`
 
 ---
@@ -37,9 +38,11 @@ Our goal is to create a UI that matches the premium quality of the car itself—
 
 ## 🛠 Tech Stack
 
-- **Core**: React (Vite/Astro), Tailwind CSS, Nanostores.
-- **API**: Serverless Proxy (Astro SSR) with multi-proxy 429 failover (Cloudflare Pages + Vercel + CF Workers).
-- **Integration**: Official/Reverse-Engineered VinFast API + MQTT over WebSocket (AWS IoT Core).
+- **Core**: Astro 5, React, Tailwind CSS, Nanostores.
+- **Backend**: Serverless Proxy (Astro SSR on Cloudflare Pages) with multi-proxy 429 failover.
+- **Telemetry**: MQTT over WebSocket (AWS IoT Core) — real-time, no polling.
+- **Auth**: Auth0 OAuth2 with HttpOnly cookies (auto-detects localhost for local dev).
+- **Storage**: Cloudflare KV for crowdsourced telemetry aliases.
 
 ## 🚀 Quick Start
 

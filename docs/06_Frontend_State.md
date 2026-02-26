@@ -17,6 +17,7 @@ The `vehicleStore` is a mapped store containing:
 
 ### 1.2 Active Vehicle State (The "Digital Twin")
 
+- `isRefreshing`: Boolean flag, true while waiting for initial MQTT data (cleared on first message arrival).
 - `isEnriching`: Boolean flag, true while fetching external data (Location/Weather).
 
 These fields represent the **currently selected** vehicle:
@@ -57,10 +58,11 @@ These fields represent the **currently selected** vehicle:
 
 ### 2.1 Initialization
 
-1.  `DashboardController.jsx` mounts and calls `fetchVehicles()`.
+1.  `DashboardController.jsx` mounts, sets MQTT callbacks, calls `fetchUser()` and `fetchVehicles()` in parallel.
 2.  `fetchVehicles()` calls `api.getVehicles()` (Service).
 3.  Static vehicle data is retrieved and populated in `vehicles` array.
 4.  It automatically calls `switchVehicle()` for the first VIN in the list.
+5.  `isInitialized` is set to `true` once a valid VIN is available.
 
 ### 2.2 Vehicle Switching (`switchVehicle(vin)`)
 
@@ -68,22 +70,28 @@ These fields represent the **currently selected** vehicle:
 2.  `switchVehicle` looks up static info from `vehicles` array.
 3.  It retrieves any existing telemetry from `vehicleCache[vin]`.
 4.  It **merges** Static + Cached Telemetry -> `vehicleStore` (Active State).
-5.  It triggers an immediate `fetchTelemetry(vin)` to get fresh data.
+5.  MQTT subscription is switched to the new VIN (`mqttClient.switchVin`).
 
-### 2.3 Telemetry Polling
+### 2.3 Live Telemetry (MQTT)
 
-1.  `fetchTelemetry(vin)` calls `api.getTelemetry(vin)`.
-2.  The Service calls the Proxy (`/api/proxy/...`) + External Services (Weather/Geo).
-3.  `updateVehicleData(data)` is called with the normalized result.
-4.  **Crucially**, `updateVehicleData` updates **BOTH** the `vehicleCache[vin]` AND (if the VIN matches active) the `vehicleStore`.
-5.  **Reactivity**: UI components re-render automatically.
+All telemetry flows through MQTT — there is no REST polling. Core aliases are registered once on connect to trigger data push.
 
-## 3. Auth Store
+1.  MQTT messages arrive on `/mobile/{VIN}/push`.
+2.  `mqttClient._onMessage()` parses raw data via `parseTelemetry()`.
+3.  `updateFromMqtt(vin, parsed, rawMessages)` is called.
+4.  `updateVehicleData(data)` updates **BOTH** the `vehicleCache[vin]` AND (if the VIN matches active) the `vehicleStore`.
+5.  `isRefreshing` is cleared on first MQTT message arrival.
+6.  **Reactivity**: UI components re-render automatically.
 
-Managed via `authStore` and `api` service (localStorage).
+## 3. Supporting Stores
+
+- **`mqttStore`**: MQTT connection status (`connected` / `connecting` / `disconnected`).
+- **`chargingHistoryStore`**: Cached charging sessions.
+- **`mqttSnapshotVersion`**: Atom counter, incremented on each MQTT data ingestion. TelemetryDrawer subscribes to this for progressive updates.
 
 ## 4. Best Practices
 
 - **Direct Access**: Use `vehicleStore.get()` for reading state inside functions (like `switchVehicle`).
 - **Reactive Access**: Use `useStore(vehicleStore)` in React components (`DigitalTwin`, `CarStatus`, etc.).
 - **Updates**: Always use `updateVehicleData()` helper to ensure cache consistency.
+- **Performance**: Use `setKey()` instead of spreading for partial updates.

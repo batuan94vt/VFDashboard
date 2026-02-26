@@ -133,7 +133,6 @@ Orchestrates the MQTT lifecycle:
 - Calls `registerResources()` via REST API after MQTT connects (triggers T-Box to push data)
 - Routes MQTT messages to `updateFromMqtt()`
 - Destroys MQTT client on component unmount
-- Reduces REST polling interval to 30 minutes when MQTT is connected (fallback only)
 
 ### 6. UI Integration
 
@@ -142,7 +141,7 @@ Orchestrates the MQTT lifecycle:
 Displays MQTT connection status:
 - **Connected**: Green pulsing "Live" indicator with "MQTT" label
 - **Connecting**: Amber "Connecting" with "MQTT..." label
-- **Disconnected**: Falls back to REST polling countdown timer
+- **Disconnected**: Shows "Offline" status, no data updates
 
 ---
 
@@ -297,14 +296,14 @@ Use this in browser console after deep scan has run at least once:
 // Show current cached keys + live sample keys cho tất cả VIN đã thấy
 window.__vfMqttTelemetry.buildMqttTelemetryInspectorReport();
 
-// Show only cho 1 VIN (ví dụ: RLLV2CWA5PH705671)
+// Show only cho 1 VIN (ví dụ: RLLVXXXXXXXXXXXXX)
 window.__vfMqttTelemetry.buildMqttTelemetryInspectorReport(
-  "RLLV2CWA5PH705671",
+  "RLLVXXXXXXXXXXXXX",
 );
 
 // Xóa cache key của VIN trước khi re-run deep scan
 window.__vfMqttTelemetry.clearMqttTelemetryCatalogForVin(
-  "RLLV2CWA5PH705671",
+  "RLLVXXXXXXXXXXXXX",
 );
 ```
 

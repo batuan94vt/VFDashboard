@@ -103,10 +103,12 @@ export const POST = async ({ request, cookies, locals }) => {
     const expiresIn = data.expires_in || 3600;
     const tokenExpiresAt = Date.now() + expiresIn * 1000;
 
+    // Disable `secure` on localhost (HTTP) so cookies work in dev
+    const isLocalhost = new URL(request.url).hostname === "localhost";
     const cookieOptions = {
       path: "/",
       httpOnly: true,
-      secure: true,
+      secure: !isLocalhost,
       sameSite: "lax",
     };
 

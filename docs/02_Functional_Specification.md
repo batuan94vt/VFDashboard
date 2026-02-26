@@ -1,8 +1,8 @@
 # VinFast Dashboard - Functional Specification
 
-**Version:** 1.1  
-**Status:** UPDATED  
-**Date:** Jan 2026
+**Version:** 2.0
+**Status:** UPDATED
+**Date:** Feb 2026
 
 ---
 
@@ -113,10 +113,11 @@ _(Refer to `assets/dashboard_preview.webp` for visual style orientation)_
 
 ### 4.1 API Mapping (BFF)
 
-- **Login**: `POST /api/login` (Auth0 integration).
-- **Get Vehicles**: `GET /api/vehicles` (Returns list of vehicles).
-- **Get Telemetry**: `GET /api/telemetry/{vin}` (Polled every hour or on demand).
-- **Get User**: `GET /api/user` (Profile info).
+- **Login**: `POST /api/login` (Auth0 integration, HttpOnly cookies).
+- **Get Vehicles**: `GET /api/proxy/ccarusermgnt/api/v1/user-vehicle`.
+- **Register Core Aliases**: `POST /api/proxy/.../list_resource` (triggers T-Box data push).
+- **Telemetry**: Real-time via MQTT over WebSocket (no REST polling).
+- **Get User**: `GET /api/user` (Auth0 userinfo).
 
 ### 4.2 State Management
 

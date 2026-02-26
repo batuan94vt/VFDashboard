@@ -77,8 +77,8 @@ Namespaces that the dashboard currently uses or may use:
 
 | Method | Path                                                      | Description                                                   |
 | ------ | --------------------------------------------------------- | ------------------------------------------------------------- |
-| POST   | `/ccaraccessmgmt/api/v1/telemetry/app/ping`               | **Primary telemetry** — get real-time vehicle status          |
-| POST   | `/ccaraccessmgmt/api/v1/telemetry/list_resource`          | List telemetry resources                                      |
+| POST   | `/ccaraccessmgmt/api/v1/telemetry/app/ping`               | Legacy REST telemetry (battery leasing metadata only)         |
+| POST   | `/ccaraccessmgmt/api/v1/telemetry/list_resource`          | **Register core aliases** — triggers T-Box to push MQTT data  |
 | POST   | `/ccaraccessmgmt/api/v2/remote/app/command`               | Send remote command (lock/unlock, flash lights, honk horn...) |
 | GET    | `/ccaraccessmgmt/api/v1/geo_fencing/get`                  | Get geofence config                                           |
 | POST   | `/ccaraccessmgmt/api/v1/geo_fencing/set`                  | Set geofence                                                  |

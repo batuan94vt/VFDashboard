@@ -1,12 +1,13 @@
 import { useStore } from "@nanostores/react";
 import { vehicleStore } from "../stores/vehicleStore";
+import { mqttStore } from "../stores/mqttStore";
 import { DEFAULT_LOCATION } from "../constants/vehicle";
 
 // Weather Row Component
 const WeatherRow = ({ label, value, icon, subValue }) => (
-  <div className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
-    <div className="flex items-center gap-3">
-      <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center text-blue-600 shadow-sm border border-gray-100">
+  <div className="flex items-center justify-between py-2 md:py-1.5 border-b border-gray-50 last:border-0">
+    <div className="flex items-center gap-2.5">
+      <div className="w-9 h-9 md:w-8 md:h-8 rounded-2xl bg-gray-50 flex items-center justify-center text-blue-600 shadow-sm border border-gray-100">
         {icon}
       </div>
       <div>
@@ -26,9 +27,11 @@ const WeatherRow = ({ label, value, icon, subValue }) => (
 
 export function EnvironmentCard() {
   const v = useStore(vehicleStore);
+  const mqtt = useStore(mqttStore);
+  const isWaiting = mqtt.status === "connected" || mqtt.status === "connecting";
   return (
-    <div className="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 flex flex-col h-full">
-      <div className="flex flex-col mb-4 gap-1">
+    <div className="rounded-3xl bg-white p-4 md:p-3.5 shadow-sm border border-gray-100 flex flex-col h-full">
+      <div className="flex flex-col mb-2 md:mb-1 gap-1">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <svg
@@ -89,8 +92,8 @@ export function EnvironmentCard() {
           value={
             v.outside_temp !== undefined && v.outside_temp !== null ? (
               `${v.outside_temp}°C`
-            ) : v.isEnriching ? (
-              <span className="animate-pulse">...</span>
+            ) : v.isEnriching || isWaiting ? (
+              <span className="animate-pulse text-gray-300">--°C</span>
             ) : (
               "N/A"
             )
@@ -118,9 +121,11 @@ export function EnvironmentCard() {
           value={
             v.inside_temp !== undefined && v.inside_temp !== null
               ? `${v.inside_temp}°C`
-              : "N/A"
+              : isWaiting
+                ? <span className="animate-pulse text-gray-300">--°C</span>
+                : "N/A"
           }
-          subValue={`Fan: ${v.fan_speed !== undefined && v.fan_speed !== null ? v.fan_speed : "N/A"}`}
+          subValue={`Fan: ${v.fan_speed !== undefined && v.fan_speed !== null ? v.fan_speed : isWaiting ? "..." : "N/A"}`}
           icon={
             <svg
               className="w-6 h-6"
@@ -163,13 +168,15 @@ export function EnvironmentCard() {
 
 export function MapCard() {
   const v = useStore(vehicleStore);
+  const mqtt = useStore(mqttStore);
+  const isWaiting = mqtt.status === "connected" || mqtt.status === "connecting";
   const isDefaultLoc =
     Number(v.latitude) === DEFAULT_LOCATION.LATITUDE &&
     Number(v.longitude) === DEFAULT_LOCATION.LONGITUDE;
   const hasValidCoords = v.latitude && v.longitude && !isDefaultLoc;
 
   return (
-    <div className="flex-1 rounded-3xl bg-white p-5 shadow-sm border border-gray-100 flex flex-col min-h-0 md:min-h-[400px] h-full">
+    <div className="flex-1 rounded-3xl bg-white p-5 md:p-4 shadow-sm border border-gray-100 flex flex-col min-h-0 md:min-h-[300px] md:max-h-[600px] h-full">
       <div className="flex flex-col mb-4 gap-1 px-1">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 whitespace-nowrap overflow-hidden text-ellipsis">
@@ -241,7 +248,7 @@ export function MapCard() {
                 />
               </svg>
             </a>
-          ) : v.isEnriching ? (
+          ) : v.isEnriching || isWaiting ? (
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide animate-pulse">
               Locating...
             </span>
@@ -267,11 +274,21 @@ export function MapCard() {
             className="absolute w-[150%] h-[150%] top-[-25%] left-[-25%] filter grayscale contrast-[1.1] opacity-90 mix-blend-multiply transition-opacity duration-500"
             style={{ pointerEvents: "auto" }}
           ></iframe>
-        ) : (
+        ) : isWaiting || v.isEnriching ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-50">
             <div className="w-12 h-12 rounded-full border-4 border-gray-200 border-t-blue-500 animate-spin mb-3"></div>
             <span className="text-xs font-bold uppercase tracking-wider">
               Locating...
+            </span>
+          </div>
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-50">
+            <svg className="w-10 h-10 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-300">
+              Offline
             </span>
           </div>
         )}

@@ -1,8 +1,8 @@
 # VinFast Dashboard - API Reference
 
-**Version:** 2.0  
-**Status:** VALIDATED  
-**Date:** Jan 2026
+**Version:** 5.0
+**Status:** VALIDATED
+**Date:** Feb 2026
 
 ---
 
@@ -27,7 +27,8 @@ These endpoints are served by the Astro Server (Node.js/Cloudflare/Vercel).
 
 - **Purpose**: Authenticate with VinFast Auth0 without triggering CORS errors.
 - **Body**: `{ email, password, region }`
-- **Response**: `{ access_token, refresh_token, id_token, ... }`
+- **Response**: Sets `access_token` and `refresh_token` as HttpOnly cookies.
+- **Note**: `secure` flag auto-detects localhost for local dev compatibility.
 
 ### 2.2 Generic API Proxy
 
@@ -35,9 +36,33 @@ These endpoints are served by the Astro Server (Node.js/Cloudflare/Vercel).
 
 - **Purpose**: Forward requests to VinFast Connected Car API.
 - **Headers**: Requires `Authorization: Bearer <token>` and `x-vin-code`.
+- **Signing**: Endpoints under `ccaraccessmgmt/` and `ccarcharging/` require X-HASH + X-HASH-2 (HMAC-SHA256).
 - **Usage**:
-  - `GET /api/proxy/ccarusermgnt/api/v1/user-vehicle` -> Fetches Vehicles.
-  - `POST /api/proxy/ccaraccessmgmt/api/v1/telemetry/app/ping` -> Fetches Telemetry.
+  - `GET /api/proxy/ccarusermgnt/api/v1/user-vehicle` — Fetch vehicles.
+  - `POST /api/proxy/ccaraccessmgmt/api/v1/telemetry/{vin}/list_resource` — Register core aliases.
+  - `POST /api/proxy/ccaraccessmgmt/api/v1/telemetry/{vin}/aliases` — Fetch alias definitions.
+  - `POST /api/proxy/ccarcharging/api/v1/charging-sessions/search` — Fetch charging history.
+
+### 2.3 MQTT Credentials
+
+**Endpoint**: `POST /api/mqtt-credentials`
+
+- **Purpose**: Exchange Auth0 token for AWS Cognito temporary credentials.
+- **Response**: `{ accessKeyId, secretAccessKey, sessionToken, expiration }`
+- **TTL**: 1 hour (fixed by AWS), cached client-side with 5-min buffer.
+
+### 2.4 Known-Good Aliases (KV)
+
+**Endpoint**: `GET /api/known-aliases?model=VF9&year=2024`
+
+- **Purpose**: Read crowdsourced known-good telemetry aliases from Cloudflare KV.
+- **Response**: `{ aliases: [{objectId, instanceId, resourceId, alias}], source: "kv" }`
+
+**Endpoint**: `POST /api/known-aliases`
+
+- **Purpose**: Merge new known-good aliases into KV (additive, deduped).
+- **Auth**: Requires `access_token` cookie.
+- **Body**: `{ model, year, aliases: [...], discoveredBy }`
 
 ---
 
@@ -48,25 +73,40 @@ The application uses the `VinFastAPI` class to encapsulate all logic.
 ### 3.1 `api.authenticate(email, password, region)`
 
 - Calls `/api/login`.
-- Saves session to `localStorage`.
+- Tokens stored as HttpOnly cookies (server-side).
 
 ### 3.2 `api.getVehicles()`
 
 - Calls `/api/proxy` to retrieve vehicle list.
 - Returns array of vehicle objects.
 
-### 3.3 `api.getTelemetry(vin)`
+### 3.3 `api.registerResources(vin, requestObjects)`
 
-- **Complex Flow**:
-  1.  Constructs list of Resource IDs from `static_alias_map.json`.
-  2.  Calls `/api/proxy/.../ping` to get raw values.
-  3.  Parses raw values using `telemetryMapper`.
-  4.  Fetches Weather (Open-Meteo) and Address (Nominatim) directly (with 2s timeout race condition to prevent blocking).
-  5.  Returns combined, normalized data object.
+- Calls `POST list_resource` to register ~46 core aliases.
+- Triggers T-Box to push telemetry data via MQTT.
+- Called once on MQTT connect (via `DashboardController.onConnected`).
+
+### 3.4 `api.getKnownAliases(model, year)` / `api.reportKnownAliases(...)`
+
+- Read/write known-good aliases from Cloudflare KV.
+- Used by TelemetryDrawer for crowdsourced alias data.
 
 ---
 
-## 4. Control Limitations
+## 4. Data Flow
+
+Vehicle telemetry uses a **Register Once, Read Forever** pattern:
+
+1. MQTT connects → `onConnected` registers ~46 core aliases via `list_resource` (1 API call, ~100ms).
+2. T-Box begins pushing data → MQTT subscribes to `/mobile/{VIN}/push`.
+3. MQTT messages arrive → parsed → `vehicleStore` updated reactively.
+4. First MQTT data arrives ~500ms after connect.
+
+> Deep Scan data arrives on the same MQTT stream — no additional registration needed.
+
+---
+
+## 5. Control Limitations
 
 > **IMPORTANT**: Remote Control Commands (Lock/Unlock, Climate Start) are **Read-Only**.
 

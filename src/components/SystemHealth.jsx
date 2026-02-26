@@ -1,9 +1,12 @@
 import { useStore } from "@nanostores/react";
 import { vehicleStore } from "../stores/vehicleStore";
+import { mqttStore } from "../stores/mqttStore";
 import { TIRE_PRESSURE, VEHICLE_STATUS_LABELS } from "../constants/vehicle";
 
 export default function SystemHealth() {
   const data = useStore(vehicleStore);
+  const mqtt = useStore(mqttStore);
+  const isWaiting = mqtt.status === "connected" || mqtt.status === "connecting";
 
   // Helpers (Unified Theme Colors)
   const getTireStatus = () => {
@@ -479,13 +482,13 @@ export default function SystemHealth() {
   };
 
   return (
-    <div className="bg-white rounded-3xl p-4 md:p-5 shadow-sm border border-gray-100 flex-1 min-h-0 md:min-h-[400px] md:h-full flex flex-col overflow-hidden relative">
+    <div className="bg-white rounded-3xl p-3 md:p-3 shadow-sm border border-gray-100 flex-1 min-h-0 md:min-h-0 md:max-h-[480px] flex flex-col overflow-hidden relative">
       {/* Shimmer Overlay when Refreshing */}
       {data.isRefreshing && (
         <div className="absolute inset-0 z-20 animate-shimmer opacity-30 pointer-events-none"></div>
       )}
 
-      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+      <h3 className="text-lg font-bold text-gray-900 mb-2 md:mb-1 flex items-center gap-2">
         <svg
           className="w-6 h-6 text-blue-600 flex-shrink-0"
           fill="none"
@@ -525,7 +528,7 @@ export default function SystemHealth() {
                 d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
               />
             </svg>
-            <span className="text-base font-black text-gray-700 leading-none">
+            <span className={`text-base font-black leading-none ${data.outside_temp !== null && data.outside_temp !== undefined ? "text-gray-700" : isWaiting ? "text-gray-300 animate-pulse" : "text-gray-400"}`}>
               {data.outside_temp !== null && data.outside_temp !== undefined
                 ? `${data.outside_temp}°`
                 : "--°"}
@@ -538,7 +541,7 @@ export default function SystemHealth() {
           <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider mb-1">
             Cabin
           </p>
-          <span className="text-base font-black text-gray-700 leading-none">
+          <span className={`text-base font-black leading-none ${data.inside_temp !== null && data.inside_temp !== undefined ? "text-gray-700" : isWaiting ? "text-gray-300 animate-pulse" : "text-gray-400"}`}>
             {data.inside_temp !== null && data.inside_temp !== undefined
               ? `${data.inside_temp}°C`
               : "--°C"}
@@ -586,12 +589,12 @@ export default function SystemHealth() {
       </div>
 
       <div
-        className={`space-y-2 flex-1 md:overflow-y-auto pr-2 custom-scrollbar ${!data.isRefreshing ? "animate-blur-in" : "opacity-40"}`}
+        className={`space-y-2 md:space-y-1.5 flex-1 min-h-0 md:overflow-y-auto pr-2 custom-scrollbar ${!data.isRefreshing ? "animate-blur-in" : "opacity-40"}`}
       >
         {items.map((item, index) => (
           <div
             key={index}
-            className="grid grid-cols-[32px_1fr_auto] gap-2 items-center pb-2 border-b border-gray-50 last:border-0 last:pb-0 animate-in fade-in slide-in-from-bottom-1"
+            className="grid grid-cols-[32px_1fr_auto] gap-2 items-center pb-2 md:pb-1 border-b border-gray-50 last:border-0 last:pb-0 animate-in fade-in slide-in-from-bottom-1"
             style={{ animationDelay: `${index * 50}ms` }}
           >
             <div
@@ -611,7 +614,7 @@ export default function SystemHealth() {
                 item.value === null ||
                 item.value === undefined ||
                 item.value === "";
-              const showLoading = data.isRefreshing && isMissingValue;
+              const showLoading = (data.isRefreshing || isWaiting) && isMissingValue;
 
               if (showLoading) {
                 return (

@@ -27,7 +27,7 @@ Welcome to the technical documentation for the **VinFast Dashboard** project. Th
 ### 5. [System Data Flow](./05_System_Data_Flow.md)
 
 - **Target Audience**: Architects, Developers
-- **Contents**: Visualization of the Authentication, Token Refresh, and MQTT Telemetry / REST Polling sequences.
+- **Contents**: Visualization of the Authentication, Token Refresh, MQTT Telemetry, and Core Registration sequences.
 
 ### 6. [Frontend State Management](./06_Frontend_State.md)
 
@@ -41,6 +41,11 @@ Welcome to the technical documentation for the **VinFast Dashboard** project. Th
 - **Target Audience**: Data Analysts, Developers
 - **Contents**: Raw telemetry capture for field mapping verification.
 
+### [Deployment Guide](./DEPLOY_CLOUDFLARE.md)
+
+- **Target Audience**: DevOps, Developers
+- **Contents**: Cloudflare Pages deployment, KV setup, local development.
+
 ### API Documentation
 
 Detailed API and protocol documentation is available in the `docs/api/` directory:
@@ -49,7 +54,6 @@ Detailed API and protocol documentation is available in the `docs/api/` director
 - [MQTT Telemetry](./api/MQTT_TELEMETRY.md) — Real-time MQTT via AWS IoT Core
 - [Proxy Failover](./api/PROXY_FAILOVER.md) — Multi-proxy 429 failover architecture
 - [X-HASH Technical Docs](./api/HASH_ANALYSIS_SUMMARY.md) — API signing analysis
-- [Reverse Engineering Report](./api/REVERSE_ENGINEERING_REPORT.md)
 
 ## Quick Start
 

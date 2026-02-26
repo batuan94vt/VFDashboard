@@ -92,6 +92,8 @@ const vinCacheMap = new Map<string, VinCache>();
 const persistedCache: Record<string, VinCache> = {};
 let cacheHydrated = false;
 
+const PAGE_SIZE = 500;
+
 const CHARGING_HISTORY_CACHE_KEY = "vf_charging_sessions_cache_v1";
 // Cache 24h — charging history is basically immutable for past sessions
 const CACHE_TTL = 24 * 60 * 60 * 1000;
@@ -199,8 +201,8 @@ function computeSmartDefault(sessions: ChargingSession[]): {
 } {
   if (sessions.length === 0) return { mode: "all", year: 0, month: 0 };
 
-  // --- Rule 1: Small dataset → show all ---
-  if (sessions.length <= 100) {
+  // --- Rule 1: Fits in a single API page → show all ---
+  if (sessions.length <= PAGE_SIZE) {
     return { mode: "all", year: 0, month: 0 };
   }
 
@@ -447,7 +449,7 @@ export function setFilterMonth(year: number, month: number) {
  * @param force — bypass cache
  *
  * - Per-VIN in-memory cache with 24h TTL
- * - Fetches page 0 first (size=100), then remaining pages in parallel
+ * - Fetches page 0 first, then remaining pages in parallel
  * - Applies filter after collecting all pages to keep UI update atomic
  */
 export async function fetchChargingSessions(vinCode?: string, force = false) {
@@ -466,6 +468,11 @@ export async function fetchChargingSessions(vinCode?: string, force = false) {
   // Check per-VIN cache
   const cached = hydrateOrGetCached(vin);
   if (!force && cached && Date.now() - cached.fetchedAt < CACHE_TTL) {
+    const cacheAge = ((Date.now() - cached.fetchedAt) / 1000 / 60).toFixed(1);
+    console.log(
+      `%c[Charging] Cache hit: ${cached.sessions.length} sessions (age: ${cacheAge}min)`,
+      "color:#9ca3af",
+    );
     chargingHistoryStore.setKey("loadedVin", vin);
     chargingHistoryStore.setKey("totalRecords", cached.totalRecords);
     chargingHistoryStore.setKey("error", null);
@@ -512,17 +519,23 @@ export async function fetchChargingSessions(vinCode?: string, force = false) {
 
   const fetchTask = (async () => {
     try {
-      const PAGE_SIZE = 100;
+      const fetchStart = performance.now();
 
       const firstJson = await api.getChargingHistory(0, PAGE_SIZE, vin);
       const firstSessions: ChargingSession[] = extractSessions(firstJson);
       const totalRecords = extractTotalRecords(firstJson, firstSessions.length);
+      const firstMs = (performance.now() - fetchStart).toFixed(0);
+
+      console.log(
+        `%c[Charging] Page 0: ${firstSessions.length}/${totalRecords} sessions in ${firstMs}ms (size=${PAGE_SIZE})`,
+        "color:#8b5cf6;font-weight:bold",
+      );
 
       let allSessions: ChargingSession[] = [...firstSessions];
       chargingHistoryStore.setKey("totalRecords", totalRecords);
 
       const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
-      
+
       // If there are more pages, fetch them ALL before showing anything
       if (totalPages > 1) {
         chargingHistoryStore.setKey("isLoadingMore", true);
@@ -532,7 +545,7 @@ export async function fetchChargingSessions(vinCode?: string, force = false) {
           { length: totalPages - 1 },
           (_, i) => i + 1,
         );
-        
+
         // Fetch remaining pages with concurrency
         const concurrency = 5;
         for (let i = 0; i < remaining.length; i += concurrency) {
@@ -553,12 +566,24 @@ export async function fetchChargingSessions(vinCode?: string, force = false) {
           }
         }
 
+        const totalMs = (performance.now() - fetchStart).toFixed(0);
+        console.log(
+          `%c[Charging] All pages: ${allSessions.length}/${totalRecords} sessions, ${totalPages} pages in ${totalMs}ms` +
+          (failedPages > 0 ? ` (${failedPages} failed)` : ""),
+          failedPages > 0 ? "color:#ef4444;font-weight:bold" : "color:#8b5cf6;font-weight:bold",
+        );
+
         if (failedPages > 0) {
           chargingHistoryStore.setKey(
             "warning",
             `${failedPages} pages failed to load. Results may be incomplete.`,
           );
         }
+      } else {
+        console.log(
+          `%c[Charging] Complete: ${allSessions.length} sessions in 1 request (${firstMs}ms)`,
+          "color:#22c55e;font-weight:bold",
+        );
       }
 
       // Now that we have EVERYTHING (or attempted to), update the UI once

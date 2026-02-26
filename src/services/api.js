@@ -1,11 +1,4 @@
-import {
-  REGIONS,
-  DEFAULT_REGION,
-  CORE_TELEMETRY_ALIASES,
-  FALLBACK_TELEMETRY_RESOURCES,
-} from "../config/vinfast";
-import staticAliasMap from "../config/static_alias_map.json";
-import { parseTelemetry } from "../utils/telemetryMapper";
+import { REGIONS, DEFAULT_REGION } from "../config/vinfast";
 
 const SESSION_KEY = "vf_session";
 
@@ -19,7 +12,6 @@ class VinFastAPI {
     // Tokens are now managed via HttpOnly cookies and not accessible here
     this.vin = null;
     this.userId = null;
-    this.aliasMappings = staticAliasMap;
     this.rememberMe = false;
     this.tokenExpiresAt = 0; // Tracks when access_token expires
 
@@ -479,6 +471,10 @@ class VinFastAPI {
     return resources;
   }
 
+  /**
+   * Register core resources with VinFast T-Box to trigger data push.
+   * Single call with ~40 core aliases — essential for fast MQTT data delivery.
+   */
   async registerResources(vin, requestObjects) {
     if (!vin || !requestObjects || requestObjects.length === 0) return;
     const proxyPath = `ccaraccessmgmt/api/v1/telemetry/${vin}/list_resource`;
@@ -491,41 +487,14 @@ class VinFastAPI {
 
       if (!response.ok) {
         const body = await response.text();
-        console.warn(
-          "registerResources failed:",
-          response.status,
-          body || "no body",
-        );
+        console.warn("registerResources failed:", response.status, body || "no body");
         return;
       }
 
-      if (process.env.NODE_ENV !== "production") {
-        console.log("registerResources ok:", vin);
-      }
+      console.log(`[Register] Core resources registered for ${vin} (${requestObjects.length} aliases)`);
     } catch (e) {
       console.warn("registerResources failed:", e);
     }
-  }
-
-  async getRawTelemetry(vin, requestObjects) {
-    if (vin) this.vin = vin;
-    if (!this.vin) throw new Error("VIN is required");
-
-    if (!requestObjects || requestObjects.length === 0) return [];
-
-    const proxyPath = `ccaraccessmgmt/api/v1/telemetry/app/ping`;
-    const url = `/api/proxy/${proxyPath}?region=${this.region}`;
-
-    const response = await this._fetchWithRetry(url, {
-      method: "POST",
-      body: JSON.stringify(requestObjects),
-    });
-
-    if (!response.ok)
-      throw new Error(`Raw Telemetry fetch failed: ${response.status}`);
-
-    const json = await response.json();
-    return json.data || [];
   }
 
   // --- Charging Station API ---
@@ -628,66 +597,36 @@ class VinFastAPI {
     return null;
   }
 
-  async getTelemetry(vin) {
-    if (vin) {
-      this.vin = vin;
-      this.saveSession();
+  // --- KV Known-Good Aliases ---
+
+  async getKnownAliases(model, year) {
+    try {
+      const params = new URLSearchParams({ model });
+      if (year) params.set("year", String(year));
+      const response = await fetch(`/api/known-aliases?${params}`);
+      if (!response.ok) return { aliases: [], source: "error" };
+      return await response.json();
+    } catch (e) {
+      console.warn("getKnownAliases failed:", e);
+      return { aliases: [], source: "error" };
     }
-    if (!this.vin) throw new Error("VIN is required");
-
-    const requestObjects = [];
-    const pathToAlias = {};
-
-    // Build Request List
-    CORE_TELEMETRY_ALIASES.forEach((alias) => {
-      if (this.aliasMappings[alias]) {
-        const m = this.aliasMappings[alias];
-        requestObjects.push({
-          objectId: m.objectId,
-          instanceId: m.instanceId,
-          resourceId: m.resourceId,
-        });
-        const path = `/${m.objectId}/${m.instanceId}/${m.resourceId}`;
-        pathToAlias[path] = alias;
-      }
-    });
-
-    FALLBACK_TELEMETRY_RESOURCES.forEach((path) => {
-      const parts = path.split("/").filter((p) => p);
-      if (parts.length === 3) {
-        // Deduplicate
-        const exists = requestObjects.find(
-          (r) =>
-            r.objectId == parts[0] &&
-            r.instanceId == parts[1] &&
-            r.resourceId == parts[2],
-        );
-        if (!exists) {
-          requestObjects.push({
-            objectId: parts[0],
-            instanceId: parts[1],
-            resourceId: parts[2],
-          });
-        }
-      }
-    });
-
-    const proxyPath = `ccaraccessmgmt/api/v1/telemetry/app/ping`;
-    const url = `/api/proxy/${proxyPath}?region=${this.region}`;
-
-    const response = await this._fetchWithRetry(url, {
-      method: "POST",
-      body: JSON.stringify(requestObjects),
-    });
-
-    if (!response.ok)
-      throw new Error(`Telemetry fetch failed: ${response.status}`);
-
-    const json = await response.json();
-    const parsed = parseTelemetry(json.data, pathToAlias);
-
-    return parsed;
   }
+
+  async reportKnownAliases(model, year, aliases, discoveredBy) {
+    try {
+      const response = await fetch("/api/known-aliases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model, year, aliases, discoveredBy }),
+      });
+      if (!response.ok) return { success: false };
+      return await response.json();
+    } catch (e) {
+      console.warn("reportKnownAliases failed:", e);
+      return { success: false };
+    }
+  }
+
 }
 
 export const api = new VinFastAPI();

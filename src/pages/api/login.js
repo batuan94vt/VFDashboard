@@ -110,11 +110,12 @@ export const POST = async ({ request, cookies, locals }) => {
     const expiresIn = data.expires_in || 3600;
     const tokenExpiresAt = Date.now() + expiresIn * 1000;
 
-    // Set Cookies
+    // Set Cookies — disable `secure` on localhost (HTTP) so cookies work in dev
+    const isLocalhost = new URL(request.url).hostname === "localhost";
     const cookieOptions = {
       path: "/",
       httpOnly: true,
-      secure: true,
+      secure: !isLocalhost,
       sameSite: "lax",
     };
 
@@ -130,7 +131,7 @@ export const POST = async ({ request, cookies, locals }) => {
     cookies.set("vf_region", region, {
       path: "/",
       httpOnly: false,
-      secure: true,
+      secure: !isLocalhost,
       sameSite: "lax",
       maxAge: rememberMe ? 60 * 60 * 24 * 30 : undefined,
     });

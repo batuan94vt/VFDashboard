@@ -1,8 +1,8 @@
 # VinFast Dashboard - Business & Architecture Specification
 
-**Version:** 2.0  
-**Status:** DRAFT  
-**Date:** Jan 2026
+**Version:** 3.0
+**Status:** UPDATED
+**Date:** Feb 2026
 
 ---
 
@@ -105,11 +105,11 @@ graph TD
 ### 3.1 Performance
 
 - **NFR-PERF-01**: **Time to Interactive (TTI)** must be < 1.0 second on 4G networks.
-- **NFR-PERF-02**: Dashboard data freshness: **real-time via MQTT** (sub-second), with REST polling fallback every 30 minutes.
+- **NFR-PERF-02**: Dashboard data freshness: **real-time via MQTT** (sub-second). First data ~500ms after connect.
 
 ### 3.2 Security
 
-- **NFR-SEC-01**: Tokens must be stored securely in the Client (e.g., LocalStorage) and transmitted only via HTTPS.
+- **NFR-SEC-01**: Tokens stored as HttpOnly cookies (server-side). All communication via HTTPS/WSS.
 - **NFR-SEC-02**: All client-server communication must use HTTPS/WSS.
 
 ### 3.3 Reliability
@@ -126,7 +126,3 @@ The system is optimized for **Manual CLI Deployment** to Cloudflare Pages.
 - **Tools**: Wrangler CLI, Vite/Astro Build.
 - **Method**: Direct Upload of the `dist` folder.
 - **Reliability**: Uses a "Nuke Build" strategy (Clearing `dist` and `.wrangler`) to ensure fresh deployments.
-
----
-
-## 3. Non-Functional Requirements (NFRs)

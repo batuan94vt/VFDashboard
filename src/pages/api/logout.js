@@ -1,10 +1,11 @@
 export const prerender = false;
 
-export const POST = async ({ cookies }) => {
+export const POST = async ({ request, cookies }) => {
+  const isLocalhost = new URL(request.url).hostname === "localhost";
   const clearOpts = {
     path: "/",
     httpOnly: true,
-    secure: true,
+    secure: !isLocalhost,
     sameSite: "lax",
     maxAge: 0,
   };

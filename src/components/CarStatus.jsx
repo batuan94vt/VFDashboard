@@ -1,8 +1,11 @@
 import { useStore } from "@nanostores/react";
 import { vehicleStore } from "../stores/vehicleStore";
+import { mqttStore } from "../stores/mqttStore";
 
 export default function CarStatus() {
   const data = useStore(vehicleStore);
+  const mqtt = useStore(mqttStore);
+  const isWaiting = mqtt.status === "connected" || mqtt.status === "connecting";
   const { battery_level, charging_status, isRefreshing } = data;
   // Normalize charging status (can be boolean or numeric 1=Charging)
   const isCharging = charging_status === 1 || charging_status === true;
@@ -46,14 +49,14 @@ export default function CarStatus() {
   return (
     <div className="h-full">
       {/* Battery Card (Energy) - Stacked Layout */}
-      <div className="relative rounded-3xl bg-white p-5 shadow-sm border border-gray-100 flex flex-col flex-1 min-h-[420px] md:h-[420px] justify-center overflow-hidden">
+      <div className="relative rounded-3xl bg-white p-4 md:p-3 shadow-sm border border-gray-100 flex flex-col flex-1 min-h-[420px] md:min-h-0 justify-center overflow-hidden">
         {/* Shimmer Overlay when Refreshing */}
         {isRefreshing && (
           <div className="absolute inset-0 z-20 animate-shimmer opacity-30 pointer-events-none"></div>
         )}
 
         {/* Header */}
-        <div className="w-full mb-4 px-1">
+        <div className="w-full mb-2 md:mb-1 px-1">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               {/* Energy Icon - Lightning */}
@@ -84,10 +87,10 @@ export default function CarStatus() {
 
         {/* CONTENT WRAPPER - Centered Vertically */}
         <div
-          className={`flex flex-col gap-4 ${!isRefreshing ? "animate-blur-in" : "opacity-40 transition-opacity"}`}
+          className={`flex flex-col gap-2 md:gap-2 ${!isRefreshing ? "animate-blur-in" : "opacity-40 transition-opacity"}`}
         >
           {/* TOP SECTION: Battery Info */}
-          <div className="flex flex-col items-center justify-center space-y-2 pb-2">
+          <div className="flex flex-col items-center justify-center space-y-1 pb-1">
             {/* Circular Progress + Range Grid */}
             <div className="flex items-center justify-center w-full gap-6">
               {/* Circular Chart Column */}
@@ -134,8 +137,10 @@ export default function CarStatus() {
                           SOC
                         </span>
                       </>
-                    ) : (
+                    ) : isWaiting ? (
                       <div className="h-8 w-16 bg-gray-100 animate-shimmer rounded"></div>
+                    ) : (
+                      <span className="text-xl font-black text-gray-300">--%</span>
                     )}
                   </div>
                 </div>
@@ -165,10 +170,42 @@ export default function CarStatus() {
                         </div>
                       )}
                     </>
-                  ) : (
+                  ) : isRefreshing ? (
                     <div className="flex flex-col items-center justify-center h-full gap-1">
                       <div className="h-3 w-20 bg-gray-100 animate-shimmer rounded"></div>
                     </div>
+                  ) : (
+                    <>
+                      {data.yearOfProduct ? (
+                        <div className="flex flex-col items-center leading-none">
+                          <span className="text-[8px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">
+                            Model Year
+                          </span>
+                          <span className="text-[9px] text-gray-600 font-bold font-mono tracking-wide">
+                            {data.yearOfProduct}
+                          </span>
+                        </div>
+                      ) : null}
+                      {data.battery_type && data.battery_type !== "--" ? (
+                        <div className="flex flex-col items-center leading-none">
+                          <span className="text-[8px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">
+                            Pack Type
+                          </span>
+                          <span className="text-[9px] text-gray-600 font-bold font-mono tracking-wide">
+                            {data.battery_type}
+                          </span>
+                        </div>
+                      ) : data.vehicleVariant && data.vehicleVariant !== "--" ? (
+                        <div className="flex flex-col items-center leading-none">
+                          <span className="text-[8px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">
+                            Variant
+                          </span>
+                          <span className="text-[9px] text-gray-600 font-bold font-mono tracking-wide">
+                            {data.vehicleVariant}
+                          </span>
+                        </div>
+                      ) : null}
+                    </>
                   )}
                 </div>
               </div>
@@ -205,8 +242,10 @@ export default function CarStatus() {
                         </p>
                       )}
                     </>
-                  ) : (
+                  ) : isWaiting ? (
                     <div className="h-5 w-12 bg-blue-100 animate-shimmer rounded"></div>
+                  ) : (
+                    <p className="text-xl font-black leading-none text-blue-300">-- <span className="text-[10px] font-bold">km</span></p>
                   )}
                 </div>
 
@@ -219,30 +258,46 @@ export default function CarStatus() {
                     <p className="text-base font-black leading-none text-emerald-600">
                       {data.soh_percentage}%
                     </p>
-                  ) : (
+                  ) : isWaiting ? (
                     <div className="h-4 w-10 bg-gray-100 animate-shimmer rounded"></div>
+                  ) : (
+                    <p className="text-base font-black leading-none text-gray-300">--%</p>
                   )}
                 </div>
 
-                {/* 12V Battery */}
-                <div
-                  className={`px-2 py-2.5 rounded-2xl flex flex-col items-center justify-center text-center border ${typeof data.battery_health_12v === "number" && data.battery_health_12v < 50 ? "bg-red-50 border-red-100" : "bg-gray-50 border-gray-100"}`}
-                >
-                  <p
-                    className={`text-[8px] font-bold uppercase tracking-wider mb-0.5 ${typeof data.battery_health_12v === "number" && data.battery_health_12v < 50 ? "text-red-500" : "text-gray-400"}`}
+                {/* 12V Battery — fallback to Odometer when 12V unavailable */}
+                {typeof data.battery_health_12v === "number" ? (
+                  <div
+                    className={`px-2 py-2.5 rounded-2xl flex flex-col items-center justify-center text-center border ${data.battery_health_12v < 50 ? "bg-red-50 border-red-100" : "bg-gray-50 border-gray-100"}`}
                   >
-                    12V Batt
-                  </p>
-                  {typeof data.battery_health_12v === "number" ? (
-                    <p
-                      className={`text-base font-black leading-none ${data.battery_health_12v < 50 ? "text-red-600" : "text-emerald-600"}`}
-                    >
+                    <p className={`text-[8px] font-bold uppercase tracking-wider mb-0.5 ${data.battery_health_12v < 50 ? "text-red-500" : "text-gray-400"}`}>
+                      12V Batt
+                    </p>
+                    <p className={`text-base font-black leading-none ${data.battery_health_12v < 50 ? "text-red-600" : "text-emerald-600"}`}>
                       {data.battery_health_12v}%
                     </p>
-                  ) : (
+                  </div>
+                ) : isRefreshing ? (
+                  <div className="px-2 py-2.5 rounded-2xl flex flex-col items-center justify-center text-center border bg-gray-50 border-gray-100">
+                    <p className="text-gray-400 text-[8px] font-bold uppercase tracking-wider mb-0.5">12V Batt</p>
                     <div className="h-4 w-10 bg-gray-100 animate-shimmer rounded"></div>
-                  )}
-                </div>
+                  </div>
+                ) : data.odometer !== null ? (
+                  <div className="px-2 py-2.5 rounded-2xl flex flex-col items-center justify-center text-center border bg-gray-50 border-gray-100">
+                    <p className="text-gray-400 text-[8px] font-bold uppercase tracking-wider mb-0.5">
+                      Odometer
+                    </p>
+                    <p className="text-base font-black leading-none text-gray-700">
+                      {Number(data.odometer).toLocaleString()}
+                      <span className="text-[8px] font-bold text-gray-400 ml-0.5">km</span>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="px-2 py-2.5 rounded-2xl flex flex-col items-center justify-center text-center border bg-gray-50 border-gray-100">
+                    <p className="text-gray-400 text-[8px] font-bold uppercase tracking-wider mb-0.5">12V Batt</p>
+                    <p className="text-base font-black leading-none text-gray-300">--%</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

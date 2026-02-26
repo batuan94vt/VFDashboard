@@ -5,10 +5,6 @@ import {
   switchVehicle,
   refreshVehicle,
 } from "../stores/vehicleStore";
-import {
-  refreshTimerStore,
-  formatCountdown,
-} from "../stores/refreshTimerStore";
 import { api } from "../services/api";
 import { mqttStore } from "../stores/mqttStore";
 import AboutModal from "./AboutModal";
@@ -151,9 +147,8 @@ const WeatherIcon = ({ temp, code }) => {
   );
 };
 
-export default function VehicleHeader({ onOpenCharging }) {
+export default function VehicleHeader({ onOpenCharging, onOpenTelemetry }) {
   const vehicle = useStore(vehicleStore);
-  const refreshTimer = useStore(refreshTimerStore);
   const mqtt = useStore(mqttStore);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [toolsOpen, setToolsOpen] = React.useState(false);
@@ -279,7 +274,7 @@ export default function VehicleHeader({ onOpenCharging }) {
             </span>
           </div>
 
-          {/* Countdown Timer / MQTT Status */}
+          {/* MQTT Status */}
           <div className="hidden md:flex flex-col items-start leading-none pl-2 pr-1 border-l border-gray-200">
             {mqtt.status === "connected" ? (
               <>
@@ -302,13 +297,11 @@ export default function VehicleHeader({ onOpenCharging }) {
               </>
             ) : (
               <>
-                <span className="text-[8px] text-gray-400 uppercase font-bold tracking-wider mb-0.5">
-                  Next Refresh
+                <span className="text-[8px] text-red-400 uppercase font-bold tracking-wider mb-0.5">
+                  Offline
                 </span>
-                <span className="text-xs font-mono font-bold text-blue-600 tabular-nums leading-none">
-                  {refreshTimer.isRefreshing
-                    ? "Refreshing..."
-                    : formatCountdown(refreshTimer.timeUntilRefresh)}
+                <span className="text-xs font-mono font-bold text-red-400 tabular-nums leading-none">
+                  Disconnected
                 </span>
               </>
             )}
@@ -358,6 +351,38 @@ export default function VehicleHeader({ onOpenCharging }) {
                 onClick={() => setToolsOpen(false)}
               />
               <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden">
+                <button
+                  onClick={() => {
+                    setToolsOpen(false);
+                    onOpenTelemetry();
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-50 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                    <svg
+                      className="w-4 h-4 text-indigo-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">Deep Scan</p>
+                    <p className="text-[10px] text-gray-400">
+                      Full telemetry data
+                    </p>
+                  </div>
+                </button>
+
+                <div className="h-px bg-gray-50 mx-3"></div>
+
                 <button
                   onClick={() => {
                     setToolsOpen(false);

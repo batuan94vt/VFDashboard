@@ -139,7 +139,7 @@ byte[] decrypted = cipher.doFinal(Base64.getDecoder().decode("AHYhIZONK8ZR58s76Y
 ```python
 method = "POST"
 path = "/ccarcharging/api/v1/stations/search"
-vin = "RLLVXXXXXXXXXXXXX71"  # Example VIN
+vin = "RLLVXXXXXXXXXXXXX"  # Example VIN
 timestamp = "1769029742000"
 secret = "Vinfast@2025"
 
@@ -469,7 +469,7 @@ Response:
   "code": 200,
   "data": [
     {
-      "vinNumber": "RLLVXXXXXXXXXXXXX71",
+      "vinNumber": "RLLVXXXXXXXXXXXXX",
       "vehicleName": "VF 9",
       "modelCode": "VF9",
       "modelYear": "2024",

@@ -131,8 +131,8 @@ GET /ccarusermgnt/api/v1/user-vehicle
   "code": 200,
   "data": [
     {
-      "vinCode": "RLLVXXXXXXXXXXXXX71",
-      "vinNumber": "RLLVXXXXXXXXXXXXX71",
+      "vinCode": "RLLVXXXXXXXXXXXXX",
+      "vinNumber": "RLLVXXXXXXXXXXXXX",
       "vehicleName": "VF 9",
       "modelCode": "VF9",
       "modelYear": "2024",
@@ -737,7 +737,7 @@ X-HASH = Base64(HMAC-SHA256(secretKey, message))
 Input:
   method = "POST"
   path = "/ccaraccessmgmt/api/v1/telemetry/app/ping"
-  vin = "RLLVXXXXXXXXXXXXX71"
+  vin = "RLLVXXXXXXXXXXXXX"
   timestamp = "1769029742000"
 
 Message:

@@ -41,6 +41,11 @@ export const API_HEADERS = {
   "User-Agent": "android - vfdashboard-community-edition - 2.17.5",
 };
 
+/**
+ * Core telemetry aliases — registered once on MQTT connect to trigger
+ * T-Box data push for dashboard essentials (battery, doors, speed, location).
+ * Single API call (~40 aliases). Heavy tiered registration removed.
+ */
 export const CORE_TELEMETRY_ALIASES = [
   "VEHICLE_STATUS_HV_BATTERY_SOC",
   "VEHICLE_STATUS_LV_BATTERY_SOC",
@@ -68,46 +73,28 @@ export const CORE_TELEMETRY_ALIASES = [
   "REMOTE_CONTROL_BONNET_CONTROL_STATUS",
   "REMOTE_CONTROL_WINDOW_STATUS",
   "REMOTE_CONTROL_CHARGE_PORT_STATUS",
-  "REMOTE_CONTROL_CHARGE_PORT_STATUS",
-  // Corrected Mappings from Legacy
   "VEHICLE_STATUS_FRONT_LEFT_TIRE_TEMPERATURE",
   "VEHICLE_STATUS_FRONT_RIGHT_TIRE_TEMPERATURE",
   "VEHICLE_STATUS_REAR_LEFT_TIRE_TEMPERATURE",
   "VEHICLE_STATUS_REAR_RIGHT_TIRE_TEMPERATURE",
   "PET_MODE_CONTROL_STATUS",
   "CAMP_MODE_CONTROL_STATUS",
-
   "VEHICLE_STATUS_LOCK_STATUS",
   "CLIMATE_INFORMATION_PASSENGER_TEMPERATURE",
-  "CLIMATE_INFORMATION_DRIVER_AIR_BLOW_LEVEL", // Was CLIMATE_INFORMATION_FAN_SPEED
+  "CLIMATE_INFORMATION_DRIVER_AIR_BLOW_LEVEL",
   "LOCATION_LATITUDE",
   "LOCATION_LONGITUDE",
   "VEHICLE_BEARING_DEGREE",
-  "BMS_STATUS_STATE_OF_HEALTH", // FR-C-05
+  "BMS_STATUS_STATE_OF_HEALTH",
   "BMS_STATUS_NOMINAL_CAPACITY_OF_THE_BATTERY_PACK",
   "BMS_STATUS_BATTERY_TYPE",
   "BMS_STATUS_BATTERY_SERIAL_NUMBER",
   "BMS_STATUS_BATTERY_DECODED_MANUFACTURE_DATE",
   "VINFAST_VEHICLE_IDENTIFIER_VEHICLE_MANUFACTURER",
-
-  // System Health / Vehicle Status
   "FIRMWARE_UPDATE_CURRENT_PKG_VERSION",
   "VERSION_INFO_TBOX_SOFTWARE_VERSION",
   "BMS_STATUS_THERMAL_RUNAWAY_WARNING",
   "CCARSERVICE_OBJECT_BOOKING_SERVICE_STATUS",
-];
-
-export const FALLBACK_TELEMETRY_RESOURCES = [
-  "/34196/0/0",
-  "/34196/0/1",
-  "/34197/0/0",
-  "/34197/0/1",
-  "/34197/0/2",
-  "/34193/0/0",
-  "/34200/0/0",
-  "/34200/0/1",
-  "/34201/0/0",
-  "/34202/0/0",
 ];
 
 // MQTT Configuration (from APK local-configuration.json)
@@ -121,6 +108,9 @@ export const MQTT_CONFIG = {
     keepAlive: 300, // seconds
   },
 };
+
+// DEEP_SCAN_CONFIG removed — list_resource registration no longer used.
+// MQTT delivers telemetry data without explicit resource registration.
 
 /**
  * Backup proxy endpoints for IP rotation / failover.

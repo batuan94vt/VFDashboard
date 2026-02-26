@@ -196,7 +196,7 @@ export default function DigitalTwin() {
   }
 
   return (
-    <div className="relative w-full h-full min-h-[45vh] md:min-h-[400px] bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col flex-1">
+    <div className="relative w-full h-full min-h-[45vh] md:min-h-[300px] bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col flex-1">
       <div className="relative flex-1 w-full flex items-center justify-center p-2 md:p-4">
         {/* Header Section: Nickname, ODO, Details, Warranty */}
         <div className="absolute top-4 md:top-6 left-5 md:left-8 right-5 md:right-8 z-10 flex flex-col">
@@ -477,37 +477,63 @@ export default function DigitalTwin() {
 
       {/* Bottom Controls Area */}
       <div className="h-auto w-full bg-white flex flex-col items-center justify-end pb-4 space-y-3 z-30">
-        {/* Gear Selector */}
-        <div className="bg-gray-50/80 backdrop-blur-md px-10 py-3.5 rounded-full flex items-center gap-8 border border-gray-200 shadow-[0_4px_20px_rgb(0,0,0,0.05)] relative z-30">
-          {[GEARS.PARK, GEARS.REVERSE, GEARS.NEUTRAL, GEARS.DRIVE].map(
-            (gear) => {
-              // Normalize data gear (handle numbers or strings)
-              const current = data.gear_position;
-              let isActive = false;
-              if (String(current) === gear) isActive = true;
-              if (
-                gear === "P" &&
-                (current === 1 || current === 128 || current === 0)
-              )
-                isActive = true;
-              if (gear === "R" && current === 2) isActive = true;
-              if (gear === "N" && current === 3) isActive = true;
-              if (gear === "D" && (current === 4 || current === 9))
-                isActive = true;
+        {/* Gear Selector + Speed */}
+        <div className="flex items-center gap-3">
+          <div className="bg-gray-50/80 backdrop-blur-md px-10 py-3.5 rounded-full flex items-center gap-8 border border-gray-200 shadow-[0_4px_20px_rgb(0,0,0,0.05)] relative z-30">
+            {[GEARS.PARK, GEARS.REVERSE, GEARS.NEUTRAL, GEARS.DRIVE].map(
+              (gear) => {
+                // Normalize data gear (handle numbers or strings)
+                const current = data.gear_position;
+                let isActive = false;
+                if (String(current) === gear) isActive = true;
+                if (
+                  gear === "P" &&
+                  (current === 1 || current === 128 || current === 0)
+                )
+                  isActive = true;
+                if (gear === "R" && current === 2) isActive = true;
+                if (gear === "N" && current === 3) isActive = true;
+                if (gear === "D" && (current === 4 || current === 9))
+                  isActive = true;
 
-              return (
-                <span
-                  key={gear}
-                  className={`relative text-base font-black transition-all duration-300 ${isActive ? "text-blue-600 scale-125" : "text-gray-300 hover:text-gray-400"}`}
-                >
-                  {gear}
-                  {isActive && (
-                    <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-600 rounded-full animate-pulse"></span>
-                  )}
+                return (
+                  <span
+                    key={gear}
+                    className={`relative text-base font-black transition-all duration-300 ${isActive ? "text-blue-600 scale-125" : "text-gray-300 hover:text-gray-400"}`}
+                  >
+                    {gear}
+                    {isActive && (
+                      <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-600 rounded-full animate-pulse"></span>
+                    )}
+                  </span>
+                );
+              },
+            )}
+          </div>
+
+          {/* Speed — visible when gear is not P */}
+          {(() => {
+            const g = data.gear_position;
+            const isParked =
+              g === "P" || g === 1 || g === 128 || g === 0 || g === null || g === undefined;
+            if (isParked) return null;
+
+            const speed =
+              data.speed !== null && data.speed !== undefined
+                ? Math.round(Number(data.speed))
+                : null;
+
+            return (
+              <div className="bg-gray-50/80 backdrop-blur-md px-4 py-2.5 rounded-full border border-gray-200 shadow-[0_4px_20px_rgb(0,0,0,0.05)] flex items-baseline gap-1 animate-in fade-in zoom-in-95 duration-300">
+                <span className="text-xl font-black text-gray-800 tabular-nums leading-none">
+                  {speed !== null ? speed : "--"}
                 </span>
-              );
-            },
-          )}
+                <span className="text-[9px] font-bold text-gray-400 uppercase">
+                  km/h
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Warnings Section */}

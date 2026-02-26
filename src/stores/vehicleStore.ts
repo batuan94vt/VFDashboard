@@ -1,8 +1,9 @@
-import { map } from "nanostores";
+import { map, atom } from "nanostores";
 import { api } from "../services/api";
 import { DEFAULT_LOCATION } from "../constants/vehicle";
-import { resetRefreshTimer, setRefreshing } from "./refreshTimerStore";
+// refreshTimerStore removed — MQTT is the sole data source, no REST polling.
 import { getMqttClient } from "../services/mqttClient";
+// list_resource registration removed — MQTT delivers data without it.
 
 export interface VehicleInfo {
   vinCode: string;
@@ -254,8 +255,10 @@ export const vehicleStore = map<VehicleState>({
   isEnriching: false,
 });
 
-const telemetryFetchInFlight = new Map<string, Promise<void>>();
-let telemetryInFlightCount = 0;
+// Reactive version counter — bumped every time MQTT snapshot receives new data.
+// TelemetryDrawer subscribes to re-read snapshot and fill groups progressively.
+export const mqttSnapshotVersion = atom(0);
+
 const locationEnrichInFlight = new Map<string, Promise<void>>();
 const locationEnrichState = new Map<
   string,
@@ -271,17 +274,17 @@ const mqttRawTelemetryByVin = new Map<string, Map<string, any>>();
 const mqttTelemetryCatalog = new Map<string, MqttTelemetryCatalogEntry>();
 const MQTT_TELEMETRY_CATALOG_STORAGE_KEY = "vf-mqtt-telemetry-catalog:v1";
 const MQTT_TELEMETRY_CATALOG_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
-const MQTT_DEEP_SCAN_REGISTER_BATCH_SIZE = 24;
-const MQTT_DEEP_SCAN_RETRY_ROUNDS = 3;
-const MQTT_DEEP_SCAN_RETRY_DELAY_MS = 700;
-const MIN_DEEP_SCAN_CACHE_ITEMS = 200;
-const MQTT_DEEP_SCAN_CACHE_FULL_RETRY_RATIO = 0.6;
 const sleepMs = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+// Singleton flag — load from localStorage at most once per session
+let _catalogLoadedFromStorage = false;
+
 const loadMqttTelemetryCatalog = (): void => {
   if (typeof window === "undefined") return;
-  if (mqttTelemetryCatalog.size > 0) return;
+  if (_catalogLoadedFromStorage) return; // Already loaded this session
+
+  _catalogLoadedFromStorage = true;
 
   try {
     const raw = window.localStorage.getItem(MQTT_TELEMETRY_CATALOG_STORAGE_KEY);
@@ -362,36 +365,40 @@ const clearCachedTelemetryCatalog = (vin?: string) => {
   }
 };
 
-const normalizeFieldNumber = (value: any, fallback = "0") => {
-  if (value === null || value === undefined || value === "") return fallback;
-  const normalized = Number.parseInt(String(value), 10);
-  return Number.isFinite(normalized) ? String(normalized) : fallback;
+// Fast parseInt: avoid String() coercion for already-string/number values
+const fastNormInt = (v: any, fallback: string): string => {
+  if (v === null || v === undefined || v === "") return fallback;
+  const n = typeof v === "number" ? v : Number(v);
+  return n === n && Number.isFinite(n) ? String(n | 0) : fallback; // n|0 truncates to int
 };
 
-const normalizeTelemetryKey = (item: any) => {
+const normalizeTelemetryKey = (item: any): string => {
   if (!item || typeof item !== "object") return "";
 
-  const deviceKey = String(item.deviceKey || "").trim().replace(/\//g, "_");
-  if (deviceKey) {
-    const rawParts = deviceKey.split("_").filter(Boolean);
-    if (rawParts.length === 3) {
-      const objectId = normalizeFieldNumber(rawParts[0], "");
-      const instanceId = normalizeFieldNumber(rawParts[1], "0");
-      const resourceId = normalizeFieldNumber(rawParts[2], "");
-      if (objectId && resourceId) {
-        return `${objectId}|${instanceId}|${resourceId}`;
+  // Fast path: deviceKey string (most common from MQTT)
+  const dk = item.deviceKey;
+  if (dk) {
+    const s = typeof dk === "string" ? dk : String(dk);
+    // Quick check for 3-part key: skip trim/replace when possible
+    const sep = s.indexOf("/") >= 0 ? "/" : "_";
+    const p0end = s.indexOf(sep);
+    if (p0end > 0) {
+      const p1end = s.indexOf(sep, p0end + 1);
+      if (p1end > p0end) {
+        const oid = fastNormInt(s.substring(0, p0end), "");
+        const iid = fastNormInt(s.substring(p0end + 1, p1end), "0");
+        const rid = fastNormInt(s.substring(p1end + 1), "");
+        if (oid && rid) return `${oid}|${iid}|${rid}`;
       }
     }
   }
 
+  // Fallback: field-level extraction
   const objectId = item.objectId ?? item.object_id ?? item.oid;
-  const instanceId = item.instanceId ?? item.instance_id ?? item.iid ?? "0";
   const resourceId = item.resourceId ?? item.resource_id ?? item.rid;
   if (objectId && resourceId) {
-    return `${normalizeFieldNumber(objectId, "")}|${normalizeFieldNumber(
-      instanceId,
-      "0",
-    )}|${normalizeFieldNumber(resourceId, "")}`;
+    const instanceId = item.instanceId ?? item.instance_id ?? item.iid ?? "0";
+    return `${fastNormInt(objectId, "")}|${fastNormInt(instanceId, "0")}|${fastNormInt(resourceId, "")}`;
   }
 
   return "";
@@ -437,6 +444,9 @@ const ingestMqttTelemetry = (vin: string, messages: any[]) => {
       existing.forEach((_item, key) => finalKeys.add(key));
     }
     setCachedTelemetryKeys(vin, finalKeys);
+
+    // Bump reactive version so TelemetryDrawer can progressively fill groups
+    mqttSnapshotVersion.set(mqttSnapshotVersion.get() + 1);
   }
 
 };
@@ -447,107 +457,7 @@ const getRawMqttTelemetry = (vin: string) => {
   return [...bucket.values()];
 };
 
-  const getCachedRequestObjects = (vin: string, aliases: any[]) => {
-  const cachedKeys = getCachedTelemetryKeys(vin);
-  if (!cachedKeys.length) return [];
-
-  const cachedSet = new Set(cachedKeys);
-
-  const toAliasKey = (item: any) => {
-    const objectId = normalizeFieldNumber(
-      item?.devObjID ?? item?.devObjId ?? item?.objectId ?? item?.object_id ??
-        item?.objID ?? item?.objId ?? item?.object,
-      "",
-    );
-    const instanceId = normalizeFieldNumber(
-      item?.devObjInstID ?? item?.devObjInstId ?? item?.instanceId ??
-        item?.instance_id ?? item?.iid ?? item?.instance,
-      "0",
-    );
-    const resourceId = normalizeFieldNumber(
-      item?.devRsrcID ?? item?.devRsrcId ?? item?.resourceId ??
-        item?.resource_id ?? item?.rsrcID ?? item?.rsrcId ?? item?.resource,
-      "",
-    );
-
-    if (!objectId || !resourceId) return "";
-    return `${objectId}|${instanceId}|${resourceId}`;
-  };
-
-  return aliases.filter((alias) => cachedSet.has(toAliasKey(alias)));
-};
-
-const buildRequestObjects = (items: any[]) => {
-  const getAliasField = (item: any, keys: string[]) => {
-    const normalizedKeys = Object.keys(item || {}).reduce((acc: any, key) => {
-      acc[key.toLowerCase()] = item[key];
-      return acc;
-    }, {});
-
-    for (const key of keys) {
-      if (item && item[key] != null && item[key] !== "") return item[key];
-      const lower = key.toLowerCase();
-      if (normalizedKeys[lower] != null && normalizedKeys[lower] !== "") {
-        return normalizedKeys[lower];
-      }
-    }
-    return "";
-  };
-
-  const out = new Map<string, { objectId: string; instanceId: string; resourceId: string }>();
-  for (const item of items) {
-    const objectId = getAliasField(item, [
-      "objectId",
-      "object_id",
-      "devObjID",
-      "devObjId",
-      "objID",
-      "objId",
-      "object",
-    ]);
-    const instanceId = getAliasField(item, [
-      "instanceId",
-      "instance_id",
-      "instance",
-      "devObjInstID",
-      "devObjInstId",
-      "iid",
-    ]);
-    const resourceId = getAliasField(item, [
-      "resourceId",
-      "resource_id",
-      "devRsrcID",
-      "devRsrcId",
-      "rsrcID",
-      "rsrcId",
-      "devRsrc",
-    ]);
-
-    if (!objectId || !resourceId) {
-      continue;
-    }
-
-    const key = `${objectId}|${instanceId ?? "0"}|${resourceId}`;
-    if (!out.has(key)) {
-      out.set(key, {
-        objectId: String(objectId),
-        instanceId: String(instanceId ?? "0"),
-        resourceId: String(resourceId),
-      });
-    }
-  }
-
-  return [...out.values()];
-};
-
-const chunkList = <T>(items: T[], size: number): T[][] => {
-  if (!size || size <= 0) return [items];
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    out.push(items.slice(i, i + size));
-  }
-  return out;
-};
+// buildRequestObjects and chunkList removed — no longer needed without list_resource.
 
 const LOCATION_ENRICH_TTL_MS = 3 * 60 * 1000;
 const LOCATION_ENRICH_DISTANCE_M = 500;
@@ -740,17 +650,18 @@ export const updateVehicleData = (
     [targetVin]: newCacheEntry,
   };
 
-  // 2. Update Store
+  // 2. Update Store — use setKey() to avoid spreading 80+ field objects
   if (targetVin === latest.vin) {
-    // If active vehicle, update both telemetry and cache in one go
-    vehicleStore.set({
-      ...latest,
-      ...dataToCache,
-      vehicleCache: newVehicleCache,
-    });
+    // Active vehicle: update individual telemetry keys + cache
+    for (const [key, val] of Object.entries(dataToCache)) {
+      if (val !== undefined) {
+        (vehicleStore as any).setKey(key, val);
+      }
+    }
+    vehicleStore.setKey("vehicleCache" as any, newVehicleCache);
   } else {
-    // If background vehicle, only update the cache
-    vehicleStore.setKey("vehicleCache", newVehicleCache);
+    // Background vehicle: only update the cache
+    vehicleStore.setKey("vehicleCache" as any, newVehicleCache);
   }
 };
 
@@ -973,374 +884,127 @@ export const switchVehicle = async (targetVin: string) => {
     .switchVin(targetVin)
     .catch((err) => console.warn("switchVehicle: MQTT switch failed", err));
 
-  // 5. Trigger Background Refresh (Only if no telemetry in cache)
-  if (!hasTelemetry) {
-    fetchTelemetry(targetVin);
-  }
+  // Telemetry comes from MQTT — no REST fetch needed.
 };
 
 export const refreshVehicle = async (vin: string) => {
   if (!vin) return;
-  const current = vehicleStore.get();
 
-  // 1. Keep live data visible while refreshing.
-  // Invalidate only freshness marker for the target VIN; avoid wiping current telemetry.
-  const newCache = { ...current.vehicleCache };
-  if (newCache[vin]) {
-    const stale = { ...newCache[vin] };
-    delete stale.lastUpdated;
-    newCache[vin] = stale;
-  }
-
-  // 2. If target VIN has no cached entry, create minimal base cache record.
-  if (!newCache[vin]) {
-    const targetVehicle = current.vehicles.find((v) => v.vinCode === vin);
-    if (targetVehicle) {
-      newCache[vin] = getVehicleBaseState(targetVehicle, current);
-    } else {
-      newCache[vin] = { vin };
-    }
-  }
-
-  vehicleStore.set({
-    ...current,
-    vehicleCache: newCache,
-    isRefreshing: true,
-  });
-
-  // 3. Fetch fresh data for the requested vehicle
-  await fetchTelemetry(vin);
-};
-
-export const fetchTelemetry = async (vin: string, isBackground = false) => {
-  if (!vin) return;
-
-  let success = false;
-
-  const existing = telemetryFetchInFlight.get(vin);
-  if (existing) return existing;
-
-  const fetchTask = (async () => {
-    telemetryInFlightCount += 1;
-
-    if (telemetryInFlightCount === 1 && !isBackground) {
-      // Set refreshing state only for first concurrent call and if not background.
-      vehicleStore.setKey("isRefreshing", true);
-      vehicleStore.setKey("isEnriching", true);
-      setRefreshing(true);
-    }
-
-    try {
-      const data = await api.getTelemetry(vin);
-      if (data) {
-        updateVehicleData({ ...data, vin }, { skipNullValues: true });
-        const lat = toCoordNumber(data.latitude);
-        const lon = toCoordNumber(data.longitude);
-        const hasExtWeatherData =
-          !!(data.location_address || data.weather_address) ||
-          data.weather_outside_temp != null ||
-          data.weather_code != null;
-        if (isValidCoordPair(lat, lon) && !hasExtWeatherData) {
-          void enrichLocationAndWeather(vin, lat, lon, false);
-        }
-        success = true;
-      }
-    } catch (e) {
-      console.error("Telemetry Refresh Error", e);
-    } finally {
-      telemetryInFlightCount = Math.max(0, telemetryInFlightCount - 1);
-
-      if (telemetryInFlightCount === 0 || !isBackground) {
-        vehicleStore.setKey("isRefreshing", false);
-        vehicleStore.setKey("isEnriching", false);
-        setRefreshing(false);
-      }
-
-      if (success) {
-        if (!isBackground) resetRefreshTimer(); // Reset timer only for active vehicle
-        if (!vehicleStore.get().isInitialized) {
-          vehicleStore.setKey("isInitialized", true);
-        }
-      }
-    }
-  })();
-
-  telemetryFetchInFlight.set(vin, fetchTask);
+  // Trigger MQTT reconnect to get fresh data — no REST fetch needed.
+  vehicleStore.setKey("isRefreshing" as any, true);
   try {
-    await fetchTask;
+    const mqttClient = getMqttClient();
+    await mqttClient.switchVin(vin);
+  } catch (e) {
+    console.warn("refreshVehicle: MQTT reconnect failed", e);
   } finally {
-    if (telemetryFetchInFlight.get(vin) === fetchTask) {
-      telemetryFetchInFlight.delete(vin);
-    }
+    vehicleStore.setKey("isRefreshing" as any, false);
   }
 };
 
-export const prefetchOtherVehicles = async () => {
-  const current = vehicleStore.get();
-  const activeVin = current.vin;
-  const otherVehicles = current.vehicles.filter((v) => v.vinCode !== activeVin);
+// REST fetchTelemetry and prefetchOtherVehicles removed — MQTT is the sole data source.
 
-  for (const v of otherVehicles) {
-    if (!current.vehicleCache[v.vinCode]?.lastUpdated) {
-      console.log(`Prefetching telemetry for background vehicle: ${v.vinCode}`);
-      fetchTelemetry(v.vinCode, true);
-    }
-  }
-};
+// Track retry count per VIN for exponential backoff
+const deepScanRetryCount = new Map<string, { count: number; lastAttempt: number }>();
 
-export const fetchFullTelemetry = async (vin: string, force = false) => {
+const DRAWER_MQTT_WAIT_MS = 5000; // Max wait for MQTT data when drawer is empty
+
+/**
+ * getDeepScanData — "Read Forever" approach
+ *
+ * Reads from the MQTT snapshot that is populated as messages arrive.
+ * No list_resource registration needed — MQTT delivers data automatically.
+ *
+ * Flow:
+ * 1. Check 5-min store cache → return early if fresh
+ * 2. Read MQTT snapshot → if data exists, store & return (INSTANT)
+ * 3. If empty: wait with exponential backoff for MQTT data to arrive
+ */
+export const getDeepScanData = async (vin: string, force = false) => {
   if (!vin) return;
   const current = vehicleStore.get();
   const now = Date.now();
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+  // 1. Check store cache
   const lastFetch = current.fullTelemetryTimestamps[vin] || 0;
   const cachedData = current.fullTelemetryData[vin] || [];
   if (
     !force &&
     now - lastFetch < CACHE_DURATION &&
     Array.isArray(cachedData) &&
-    cachedData.length >= MIN_DEEP_SCAN_CACHE_ITEMS
+    cachedData.length > 0
   ) {
-    console.log("Using cached full telemetry for", vin);
+    console.log(`[Deep Scan] Using cached data for ${vin} (${cachedData.length} items)`);
     return;
   }
 
   vehicleStore.setKey("isScanning", true);
 
   try {
-    // 1. Get Vehicle Info for Alias Version
-    const vehicleInfo = current.vehicles.find((v) => v.vinCode === vin);
-    const version = vehicleInfo?.vehicleAliasVersion || "1.0";
-    console.log(
-      `fetchFullTelemetry: vin=${vin}, version=${version}, foundInfo=${!!vehicleInfo}`,
-    );
+    // 2. Read MQTT snapshot (instant — no API calls)
+    let snapshot = getRawMqttTelemetry(vin);
 
-    // 2. Fetch Aliases
-    let resources = await api.getAliases(vin, version);
-
-    // Fallback if no resources found for the specific version
-    if ((!resources || resources.length === 0) && version !== "1.0") {
-      console.log(
-        `fetchFullTelemetry: No aliases for version ${version}, trying fallback to 1.0`,
-      );
-      resources = await api.getAliases(vin, "1.0");
-    }
-
-    if (!resources || resources.length === 0) {
-      console.error(
-        "fetchFullTelemetry: No aliases (including fallback) returned from API",
-        { vin },
-      );
-      throw new Error("No aliases found for vehicle");
-    }
-
-    console.log(`fetchFullTelemetry: Found ${resources.length} resources`);
-
-    // --- DEEP SCAN: FIND INTERESTING ALIASES ---
-    const interestingKeywords = [
-      "SERVICE",
-      "MAINTENANCE",
-      "WARRANTY",
-      "BOOKING",
-      "APPOINTMENT",
-      "NEXT",
-      "SCHEDULE",
-      "OTA",
-      "UPDATE",
-      "FIRMWARE",
-      "VERSION",
-      "ENERGY",
-      "CONSUMPTION",
-      "EFFICIENCY",
-      "TRIP",
-      "HISTORY",
-      "NOTIFICATION",
-      "ALERT",
-      "ERROR",
-      "FAULT",
-      "DIAGNOSTIC",
-      "RECALL",
-      "CAMPAIGN",
-    ];
-
-    const getAliasField = (item: any, keys: string[]) => {
-      const normalizedKeys = Object.keys(item || {}).reduce((acc: any, key) => {
-        acc[key.toLowerCase()] = item[key];
-        return acc;
-      }, {});
-
-      for (const key of keys) {
-        if (item && item[key] != null && item[key] !== "") return item[key];
-        const lower = key.toLowerCase();
-        if (normalizedKeys[lower] != null && normalizedKeys[lower] !== "")
-          return normalizedKeys[lower];
-      }
-      return "";
-    };
-
-    const candidates = resources.filter((r: any) => {
-      const name = String(
-        getAliasField(r, ["resourceName", "resource_name", "name", "deviceName"]),
-      ).toUpperCase();
-      const alias = String(
-        getAliasField(r, [
-          "alias",
-          "aliasName",
-          "alias_name",
-          "displayName",
-          "resourceAlias",
-        ]),
-      ).toUpperCase();
-      return interestingKeywords.some(
-        (keyword) => name.includes(keyword) || alias.includes(keyword),
-      );
-    });
-
-    // Always store candidates (even if empty, to clear old data)
-    console.log(
-      `Deep Scan: Found ${candidates.length} interesting aliases`,
-      candidates.slice(0, 10),
-    );
-    const currentState = vehicleStore.get();
-    const currentCache = currentState.vehicleCache[vin] || {};
-    const updatedCache = {
-      ...currentState.vehicleCache,
-      [vin]: {
-        ...currentCache,
-        debugLog: candidates,
-      },
-    };
-    const updatedDebugLogByVin = {
-      ...(currentState.debugLogByVin || {}),
-      [vin]: candidates,
-    };
-
-    vehicleStore.setKey("debugLog", candidates);
-    vehicleStore.setKey("debugLogByVin", updatedDebugLogByVin);
-    vehicleStore.setKey("vehicleCache", updatedCache);
-    // ------------------------------------------
-
-    const candidateObjects = buildRequestObjects(candidates);
-    const fallbackObjects = buildRequestObjects(resources);
-    const cachedRequestObjects = buildRequestObjects(
-      getCachedRequestObjects(vin, resources),
-    );
-    const useCachedRequest = cachedRequestObjects.length >= MIN_DEEP_SCAN_CACHE_ITEMS;
-    const requestedObjects = useCachedRequest
-      ? cachedRequestObjects
-      : candidateObjects.length > 0
-        ? candidateObjects
-        : fallbackObjects;
-
-    if (useCachedRequest) {
-      console.log(
-        `Deep Scan: Using cached request objects for ${vin}: ${requestedObjects.length}`,
-      );
-    }
-
-    if (requestedObjects.length > 0) {
-      const requestChunks = chunkList(
-        requestedObjects,
-        MQTT_DEEP_SCAN_REGISTER_BATCH_SIZE,
-      );
-      for (let i = 0; i < requestChunks.length; i += 1) {
-        const chunk = requestChunks[i];
-        await api.registerResources(vin, chunk);
-        if (i + 1 < requestChunks.length) {
-          await sleepMs(MQTT_DEEP_SCAN_RETRY_DELAY_MS);
-        }
-      }
-    }
-
-    const mqttSnapshot = getRawMqttTelemetry(vin);
-    let readySnapshot = mqttSnapshot;
-    if (!readySnapshot.length && requestedObjects.length > 0) {
-      for (let retry = 0; retry < MQTT_DEEP_SCAN_RETRY_ROUNDS; retry += 1) {
-        await sleepMs(MQTT_DEEP_SCAN_RETRY_DELAY_MS);
-        readySnapshot = getRawMqttTelemetry(vin);
-        if (readySnapshot.length > 0) break;
-      }
-    }
-
-    const shouldRetryWithFullAlias =
-      useCachedRequest &&
-      fallbackObjects.length > 0 &&
-      (readySnapshot.length === 0 ||
-        readySnapshot.length <
-          Math.max(
-            MIN_DEEP_SCAN_CACHE_ITEMS,
-            Math.floor(
-              requestedObjects.length * MQTT_DEEP_SCAN_CACHE_FULL_RETRY_RATIO,
-            ),
-          ));
-
-    if (shouldRetryWithFullAlias) {
-      console.log(
-        `Deep Scan: Cached request insufficient for ${vin} (${readySnapshot.length}/${requestedObjects.length}), retrying with full alias list (${fallbackObjects.length})`,
-      );
-      const fallbackChunks = chunkList(
-        fallbackObjects,
-        MQTT_DEEP_SCAN_REGISTER_BATCH_SIZE,
-      );
-      for (let i = 0; i < fallbackChunks.length; i += 1) {
-        const chunk = fallbackChunks[i];
-        await api.registerResources(vin, chunk);
-        if (i + 1 < fallbackChunks.length) {
-          await sleepMs(MQTT_DEEP_SCAN_RETRY_DELAY_MS);
-        }
-      }
-
-      for (let retry = 0; retry < MQTT_DEEP_SCAN_RETRY_ROUNDS; retry += 1) {
-        await sleepMs(MQTT_DEEP_SCAN_RETRY_DELAY_MS);
-        readySnapshot = getRawMqttTelemetry(vin);
-        if (readySnapshot.length > 0) break;
-      }
-    }
-
-    if (!readySnapshot.length) {
-      console.warn(
-        `Deep Scan: No MQTT telemetry snapshot yet for ${vin}. Will keep existing cache and return.`,
-      );
-      if (current.fullTelemetryData[vin]?.length) {
-        return;
-      }
-      console.warn(
-        `Deep Scan: No MQTT telemetry snapshot yet for ${vin}. Open dashboard after receiving MQTT messages`,
-      );
-      return;
-    }
-    let rawData = readySnapshot;
-
-      console.log(
-        `[Deep Scan] MQTT snapshot mode: using ${rawData.length} items for ${vin}`,
-        {
-          requested: requestedObjects.length,
-          snapshot: readySnapshot.length,
-        },
-    );
-
-    if (!rawData.length) {
-      console.warn("Deep scan returned no data", { vin });
+    if (snapshot.length > 0) {
+      console.log(`[Deep Scan] MQTT snapshot instant: ${snapshot.length} items for ${vin}`);
+      storeDeepScanSnapshot(vin, snapshot, now);
+      deepScanRetryCount.delete(vin);
       return;
     }
 
-    // 5. Update Store & Cache
-    const newFullData = { ...current.fullTelemetryData, [vin]: rawData };
-    const newFullAliases = {
-      ...current.fullTelemetryAliases,
-      [vin]: resources,
-    };
-    const newTimestamps = { ...current.fullTelemetryTimestamps, [vin]: now };
+    // 3. Snapshot is empty — wait with exponential backoff for MQTT data
+    const retry = deepScanRetryCount.get(vin);
+    const retryNum = retry && (now - retry.lastAttempt < 30000) ? retry.count : 0;
+    const waitMs = Math.max(1000, DRAWER_MQTT_WAIT_MS >> retryNum); // halves each retry, min 1s
+    const pollInterval = 500;
+    const maxPolls = Math.ceil(waitMs / pollInterval);
 
-    vehicleStore.setKey("fullTelemetryData", newFullData);
-    vehicleStore.setKey("fullTelemetryAliases", newFullAliases);
-    vehicleStore.setKey("fullTelemetryTimestamps", newTimestamps);
+    for (let i = 0; i < maxPolls; i++) {
+      await sleepMs(pollInterval);
+      snapshot = getRawMqttTelemetry(vin);
+      if (snapshot.length > 0) break;
+    }
+
+    if (snapshot.length > 0) {
+      console.log(`[Deep Scan] MQTT data arrived after wait: ${snapshot.length} items for ${vin}`);
+      storeDeepScanSnapshot(vin, snapshot, now);
+      deepScanRetryCount.delete(vin);
+    } else {
+      console.warn(`[Deep Scan] No MQTT data for ${vin} after ${waitMs}ms wait (retry #${retryNum})`);
+      deepScanRetryCount.set(vin, { count: retryNum + 1, lastAttempt: now });
+      // Store empty to avoid re-triggering immediately
+      if (!current.fullTelemetryData[vin]?.length) {
+        storeDeepScanSnapshot(vin, [], now);
+      }
+    }
   } catch (e) {
-    console.error("Full Telemetry Fetch Error", e);
+    console.error("[Deep Scan] Error:", e);
   } finally {
     vehicleStore.setKey("isScanning", false);
   }
+};
+
+/**
+ * Store MQTT snapshot into vehicleStore for TelemetryDrawer to read.
+ */
+function storeDeepScanSnapshot(vin: string, rawData: any[], timestamp: number) {
+  const current = vehicleStore.get();
+  const newFullData = { ...current.fullTelemetryData, [vin]: rawData };
+  const newTimestamps = { ...current.fullTelemetryTimestamps, [vin]: timestamp };
+
+  vehicleStore.setKey("fullTelemetryData", newFullData);
+  vehicleStore.setKey("fullTelemetryTimestamps", newTimestamps);
+}
+
+// accelerateRegistration, registerAllStaticAliases, smartDiscovery removed —
+// list_resource registration is no longer used. MQTT delivers data without it.
+
+/**
+ * fetchFullTelemetry — backward-compatible wrapper around getDeepScanData.
+ * Existing callers (TelemetryDrawer) continue to work without changes.
+ */
+export const fetchFullTelemetry = async (vin: string, force = false) => {
+  return getDeepScanData(vin, force);
 };
 
 export const fetchUser = async () => {
@@ -1401,9 +1065,6 @@ export const fetchVehicles = async (): Promise<string | null> => {
       const firstVin = vehicles[0].vinCode;
       await switchVehicle(firstVin);
 
-      // Prefetch other vehicles in background
-      prefetchOtherVehicles();
-
       return firstVin;
     }
     return null;
@@ -1424,6 +1085,12 @@ export const updateFromMqtt = (
   if (!vin || !parsedData || Object.keys(parsedData).length === 0) return;
 
   updateVehicleData({ ...parsedData, vin } as Partial<VehicleState>);
+
+  // Clear loading state once first MQTT data arrives for the active vehicle.
+  const current = vehicleStore.get();
+  if (current.isRefreshing && current.vin === vin) {
+    vehicleStore.setKey("isRefreshing" as any, false);
+  }
 
   const latitude = toCoordNumber(parsedData.latitude);
   const longitude = toCoordNumber(parsedData.longitude);

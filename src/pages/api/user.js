@@ -27,6 +27,21 @@ export const GET = async ({ request, cookies }) => {
       },
     });
 
+    // If Auth0 returns non-OK (expired token, etc.), pass through the status code
+    // so client-side _fetchWithRetry can detect 401 and trigger token refresh.
+    if (!response.ok) {
+      let errorBody;
+      try {
+        errorBody = await response.json();
+      } catch {
+        errorBody = { error: `Auth0 returned ${response.status}` };
+      }
+      return new Response(JSON.stringify(errorBody), {
+        status: response.status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const data = await response.json();
     const filtered = {
       name: data.name,
@@ -37,7 +52,7 @@ export const GET = async ({ request, cookies }) => {
     };
 
     return new Response(JSON.stringify(filtered), {
-      status: response.status,
+      status: 200,
       headers: {
         "Content-Type": "application/json",
       },

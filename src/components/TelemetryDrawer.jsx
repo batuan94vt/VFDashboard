@@ -1,318 +1,104 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useStore } from "@nanostores/react";
-import { vehicleStore, fetchFullTelemetry } from "../stores/vehicleStore";
-import { getSortedGroups, getGroupByAlias } from "../config/deepScanGroups";
+import {
+  vehicleStore,
+  getDeepScanData,
+  mqttSnapshotVersion,
+  getLiveMqttSnapshotForVin,
+} from "../stores/vehicleStore";
+import {
+  getSortedGroups,
+  getGroupByAlias,
+  ALIAS_PREFIX_TO_GROUP,
+} from "../config/deepScanGroups";
+import {
+  lookupAliasByDeviceKey,
+  humanizeAlias,
+} from "../utils/aliasLookup";
+import { api } from "../services/api";
 
-// Icon component for groups
-const GroupIcon = ({ icon }) => {
-  const icons = {
-    battery: (
-      <svg
-        className="w-4 h-4 text-green-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M4 8h16v8H4V8zm16 2h2v4h-2V10zM7 11h4v2H7v-2z"
-        />
-      </svg>
-    ),
-    "battery-low": (
-      <svg
-        className="w-4 h-4 text-yellow-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M4 8h16v8H4V8zm16 2h2v4h-2V10z"
-        />
-      </svg>
-    ),
-    bolt: (
-      <svg
-        className="w-4 h-4 text-blue-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M13 10V3L4 14h7v7l9-11h-7z"
-        />
-      </svg>
-    ),
-    car: (
-      <svg
-        className="w-4 h-4 text-gray-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M8 17l4 4 4-4m-4-5v9M3 7l9-4 9 4M3 7l9 4 9-4M3 7v10l9 4 9-4V7"
-        />
-      </svg>
-    ),
-    tire: (
-      <svg
-        className="w-4 h-4 text-gray-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <circle cx="12" cy="12" r="9" strokeWidth="2" />
-        <circle cx="12" cy="12" r="4" strokeWidth="2" />
-      </svg>
-    ),
-    door: (
-      <svg
-        className="w-4 h-4 text-orange-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M3 3h18v18H3V3zm5 9h2"
-        />
-      </svg>
-    ),
-    window: (
-      <svg
-        className="w-4 h-4 text-cyan-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2" />
-        <line x1="3" y1="12" x2="21" y2="12" strokeWidth="2" />
-        <line x1="12" y1="3" x2="12" y2="21" strokeWidth="2" />
-      </svg>
-    ),
-    thermometer: (
-      <svg
-        className="w-4 h-4 text-red-500"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M12 9V3m0 18a4 4 0 100-8 4 4 0 000 8zm0-8V9"
-        />
-      </svg>
-    ),
-    seat: (
-      <svg
-        className="w-4 h-4 text-purple-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M5 19h14M7 14l1-5h8l1 5M7 14v5m10-5v5"
-        />
-      </svg>
-    ),
-    location: (
-      <svg
-        className="w-4 h-4 text-red-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-        />
-      </svg>
-    ),
-    star: (
-      <svg
-        className="w-4 h-4 text-yellow-500"
-        fill="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-      </svg>
-    ),
-    lightbulb: (
-      <svg
-        className="w-4 h-4 text-yellow-500"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-        />
-      </svg>
-    ),
-    shield: (
-      <svg
-        className="w-4 h-4 text-red-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-        />
-      </svg>
-    ),
-    warning: (
-      <svg
-        className="w-4 h-4 text-amber-500"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-        />
-      </svg>
-    ),
-    route: (
-      <svg
-        className="w-4 h-4 text-indigo-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-        />
-      </svg>
-    ),
-    cpu: (
-      <svg
-        className="w-4 h-4 text-gray-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
-        />
-      </svg>
-    ),
-    microchip: (
-      <svg
-        className="w-4 h-4 text-blue-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <rect x="6" y="6" width="12" height="12" rx="1" strokeWidth="2" />
-        <path
-          strokeLinecap="round"
-          strokeWidth="2"
-          d="M9 1v4m6-4v4M9 19v4m6-4v4M1 9h4m-4 6h4M19 9h4m-4 6h4"
-        />
-      </svg>
-    ),
-    "id-card": (
-      <svg
-        className="w-4 h-4 text-teal-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V4a2 2 0 114 0v2m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
-        />
-      </svg>
-    ),
-    wifi: (
-      <svg
-        className="w-4 h-4 text-blue-500"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"
-        />
-      </svg>
-    ),
-    search: (
-      <svg
-        className="w-4 h-4 text-purple-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-        />
-      </svg>
-    ),
-    ellipsis: (
-      <svg
-        className="w-4 h-4 text-gray-400"
-        fill="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <circle cx="5" cy="12" r="2" />
-        <circle cx="12" cy="12" r="2" />
-        <circle cx="19" cy="12" r="2" />
-      </svg>
-    ),
-  };
-  return icons[icon] || icons.ellipsis;
+// Icon SVG paths — defined once at module level to avoid re-creating on every render.
+// Each entry: [d-path(s), colorClass, fill?]
+const ICON_PATHS = {
+  battery: ["M4 8h16v8H4V8zm16 2h2v4h-2V10zM7 11h4v2H7v-2z", "text-green-600"],
+  "battery-low": ["M4 8h16v8H4V8zm16 2h2v4h-2V10z", "text-yellow-600"],
+  bolt: ["M13 10V3L4 14h7v7l9-11h-7z", "text-blue-600"],
+  car: ["M8 17l4 4 4-4m-4-5v9M3 7l9-4 9 4M3 7l9 4 9-4M3 7v10l9 4 9-4V7", "text-gray-600"],
+  thermometer: ["M12 9V3m0 18a4 4 0 100-8 4 4 0 000 8zm0-8V9", "text-red-500"],
+  seat: ["M5 19h14M7 14l1-5h8l1 5M7 14v5m10-5v5", "text-purple-600"],
+  location: [["M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z", "M15 11a3 3 0 11-6 0 3 3 0 016 0z"], "text-red-600"],
+  warning: ["M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z", "text-amber-500"],
+  route: ["M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7", "text-indigo-600"],
+  cpu: ["M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z", "text-gray-600"],
+  lightbulb: ["M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z", "text-yellow-500"],
+  shield: ["M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", "text-red-600"],
+  wifi: ["M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0", "text-blue-500"],
+  search: ["M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z", "text-purple-600"],
+  star: ["M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z", "text-yellow-500", true],
 };
+
+// Special icons with non-path elements (rect/circle/line) — kept as JSX
+const SPECIAL_ICONS = {
+  tire: (
+    <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" strokeWidth="2" />
+      <circle cx="12" cy="12" r="4" strokeWidth="2" />
+    </svg>
+  ),
+  door: (
+    <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h18v18H3V3zm5 9h2" />
+    </svg>
+  ),
+  window: (
+    <svg className="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2" />
+      <line x1="3" y1="12" x2="21" y2="12" strokeWidth="2" />
+      <line x1="12" y1="3" x2="12" y2="21" strokeWidth="2" />
+    </svg>
+  ),
+  microchip: (
+    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <rect x="6" y="6" width="12" height="12" rx="1" strokeWidth="2" />
+      <path strokeLinecap="round" strokeWidth="2" d="M9 1v4m6-4v4M9 19v4m6-4v4M1 9h4m-4 6h4M19 9h4m-4 6h4" />
+    </svg>
+  ),
+  "id-card": (
+    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V4a2 2 0 114 0v2m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+    </svg>
+  ),
+  ellipsis: (
+    <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="12" r="2" />
+    </svg>
+  ),
+};
+
+// Efficient icon renderer — path-based icons built from data, special icons from cache
+const GroupIcon = ({ icon }) => {
+  // Check special icons first
+  if (SPECIAL_ICONS[icon]) return SPECIAL_ICONS[icon];
+
+  const pathDef = ICON_PATHS[icon] || ICON_PATHS.cpu; // fallback to cpu
+  const [paths, colorClass, isFill] = pathDef;
+
+  return (
+    <svg className={`w-4 h-4 ${colorClass}`} fill={isFill ? "currentColor" : "none"} stroke={isFill ? "none" : "currentColor"} viewBox="0 0 24 24">
+      {Array.isArray(paths) ? (
+        paths.map((d, i) => (
+          <path key={i} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={d} />
+        ))
+      ) : (
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={paths} />
+      )}
+    </svg>
+  );
+};
+
+// Older icon map removed — GroupIcon now uses ICON_PATHS + SPECIAL_ICONS above
 
 // Format value based on field config
 const formatValue = (value, fieldConfig) => {
@@ -387,24 +173,37 @@ const getValueStatus = (value, fieldConfig) => {
 
 export default function TelemetryDrawer({ isOpen, onClose }) {
   const vehicle = useStore(vehicleStore);
+  const snapshotVer = useStore(mqttSnapshotVersion);
   const [searchTerm, setSearchTerm] = useState("");
+  const drawerOpenedAt = useRef(0);
+  const kvReported = useRef(false);
 
-  const data = vehicle.fullTelemetryData[vehicle.vin] || [];
+  // Read from store (populated by getDeepScanData / storeDeepScanSnapshot)
+  const storedData = vehicle.fullTelemetryData[vehicle.vin] || [];
   const aliases = vehicle.fullTelemetryAliases[vehicle.vin] || [];
   const timestamp = vehicle.fullTelemetryTimestamps[vehicle.vin];
   const debugLog = vehicle.debugLogByVin?.[vehicle.vin] || vehicle.debugLog || [];
 
-  // Map raw data with alias metadata
+  // Progressive: re-read MQTT snapshot reactively when snapshotVer changes
+  const liveSnapshot = React.useMemo(() => {
+    if (!isOpen || !vehicle.vin) return [];
+    return getLiveMqttSnapshotForVin(vehicle.vin).map((item) => item.raw);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, vehicle.vin, snapshotVer]);
+
+  // Use whichever has more data: stored or live
+  const data = liveSnapshot.length > storedData.length ? liveSnapshot : storedData;
+
+  // Map raw data with alias metadata + reverse lookup from static map
   const mappedData = React.useMemo(() => {
     return data.map((item) => {
-      // Find matching alias by objectId, instanceId, resourceId
-      const parts = (item.deviceKey || "").split("_");
-      // API Keys are strings (e.g. "34180") but deviceKey has padding (e.g. "34180")
-      // To be safe, we parse int to remove leading zeros, then back to string
+      const dk = item.deviceKey || "";
+      const parts = dk.split("_");
       const oid = String(parseInt(parts[0], 10));
       const iid = String(parseInt(parts[1], 10));
       const rid = String(parseInt(parts[2], 10));
 
+      // 1. Try API alias metadata
       const meta = aliases.find(
         (a) =>
           String(a.devObjID) === oid &&
@@ -412,9 +211,11 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
           String(a.devRsrcID || "0") === rid,
       );
 
-      // Improve name context
+      // 2. Reverse lookup from static_alias_map if no API meta
+      const alias = meta?.alias || lookupAliasByDeviceKey(`${oid}_${iid}_${rid}`) || "";
+
+      // 3. Build display name: API name > humanized alias
       let improvedName = meta?.name || null;
-      const alias = meta?.alias || "";
       if (
         improvedName &&
         (improvedName.toLowerCase() === "status" ||
@@ -433,9 +234,12 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
         improvedName = `${context} ${improvedName}`;
       }
 
+      // 4. humanizeAlias as fallback when API name is missing
+      const displayName = improvedName || humanizeAlias(alias) || null;
+
       return {
         ...item,
-        name: improvedName,
+        name: displayName,
         units: meta?.units || null,
         alias: alias,
       };
@@ -496,49 +300,8 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
       if (groupConfig) {
         matchedGroup = groupConfig.id;
       } else {
-        // Fallback: match by alias prefix patterns
-        const prefixPatterns = {
-          BATTERY_LEASING: "connectivity",
-          BMS_STATUS: "battery_main",
-          CAMP_MODE: "special_modes",
-          PET_MODE: "special_modes",
-          VALET_MODE: "special_modes",
-          CAPP_PAIRING: "connectivity",
-          CCARSERVICE: "connectivity",
-          CHARGE_CONTROL: "charging",
-          CHARGING_STATUS: "charging",
-          CLIMATE_INFORMATION: "climate",
-          CLIMATE_CONTROL: "climate",
-          DATA_PRIVACY: "connectivity",
-          DOOR_AJAR: "doors",
-          DOOR_BONNET: "doors",
-          DOOR_TRUNK: "doors",
-          REMOTE_CONTROL_DOOR: "doors",
-          REMOTE_CONTROL_WINDOW: "windows",
-          REMOTE_CONTROL_CHARGE_PORT: "charging",
-          LOCATION: "location",
-          VEHICLE_STATUS_HV_BATTERY: "battery_main",
-          VEHICLE_STATUS_LV_BATTERY: "battery_12v",
-          VEHICLE_STATUS_REMAINING: "battery_main",
-          VEHICLE_STATUS_FRONT_LEFT_TIRE: "tires",
-          VEHICLE_STATUS_FRONT_RIGHT_TIRE: "tires",
-          VEHICLE_STATUS_REAR_LEFT_TIRE: "tires",
-          VEHICLE_STATUS_REAR_RIGHT_TIRE: "tires",
-          VEHICLE_STATUS_AMBIENT: "climate",
-          VEHICLE_STATUS_INTERIOR: "climate",
-          VEHICLE_STATUS: "vehicle_general",
-          VEHICLE_CRASH: "safety",
-          VEHICLE_WARNINGS: "warnings",
-          WINDOW: "windows",
-          LIGHT_: "lights",
-          TRIPS_INFORMATION: "trips",
-          FIRMWARE: "firmware",
-          ECUS_INFORMATION: "ecu_modules",
-          VINFAST_VEHICLE: "identity",
-          VERSION_INFO: "firmware",
-        };
-
-        for (const [prefix, groupId] of Object.entries(prefixPatterns)) {
+        // Fallback: match by alias prefix patterns (from deepScanGroups config)
+        for (const [prefix, groupId] of Object.entries(ALIAS_PREFIX_TO_GROUP)) {
           if (alias.startsWith(prefix)) {
             matchedGroup = groupId;
             break;
@@ -676,14 +439,71 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
       });
   }, [filteredData, debugLog]);
 
+  // Trigger deep scan data when drawer opens — non-blocking
+  // Live MQTT snapshot shows instantly via liveSnapshot memo above;
+  // getDeepScanData only accelerates registration if snapshot is empty.
   useEffect(() => {
-    if (isOpen && !timestamp && !vehicle.isScanning) {
-      fetchFullTelemetry(vehicle.vin);
+    if (isOpen && vehicle.vin) {
+      drawerOpenedAt.current = Date.now();
+      kvReported.current = false;
+      // Fire-and-forget: don't block display on this — liveSnapshot already has data
+      getDeepScanData(vehicle.vin);
     }
-  }, [isOpen, vehicle.vin, timestamp]);
+  }, [isOpen, vehicle.vin]);
 
-  const handleRefresh = () => {
-    fetchFullTelemetry(vehicle.vin, true);
+  // Helper: collect known-good aliases from MQTT snapshot and report to KV
+  const reportKnownAliasesToKV = React.useCallback(() => {
+    if (!vehicle.vin) return 0;
+
+    const snapshot = getLiveMqttSnapshotForVin(vehicle.vin);
+    const aliasesWithData = snapshot
+      .filter((item) => item.raw?.value !== null && item.raw?.value !== undefined && item.raw?.value !== "")
+      .map((item) => {
+        const dk = item.raw?.deviceKey || "";
+        const parts = dk.split("_");
+        const oid = String(parseInt(parts[0], 10));
+        const iid = String(parseInt(parts[1], 10));
+        const rid = String(parseInt(parts[2], 10));
+        return {
+          objectId: oid,
+          instanceId: iid,
+          resourceId: rid,
+          // Use reverse lookup for alias name (raw MQTT often has empty alias)
+          alias: item.raw?.alias || lookupAliasByDeviceKey(`${oid}_${iid}_${rid}`) || "",
+        };
+      })
+      .filter((a) => a.objectId && a.resourceId && a.objectId !== "NaN");
+
+    if (aliasesWithData.length > 0) {
+      const vehicleInfo = vehicle.vehicles?.find((v) => v.vinCode === vehicle.vin);
+      const model = vehicleInfo?.marketingName || "unknown";
+      const year = vehicleInfo?.yearOfProduct || "unknown";
+
+      api.reportKnownAliases(model, year, aliasesWithData, vehicle.vin);
+      console.log(`[Deep Scan] Reported ${aliasesWithData.length} known-good aliases to KV (model=${model}, year=${year})`);
+      return aliasesWithData.length;
+    }
+    return 0;
+  }, [vehicle.vin, vehicle.vehicles]);
+
+  // KV reporting: after 10s of drawer being open, report known-good aliases
+  useEffect(() => {
+    if (!isOpen || !vehicle.vin || kvReported.current) return;
+
+    const timer = setTimeout(() => {
+      if (!isOpen || kvReported.current) return;
+
+      const count = reportKnownAliasesToKV();
+      if (count > 0) kvReported.current = true;
+    }, 3000); // Report early (3s) while most items already have data
+
+    return () => clearTimeout(timer);
+  }, [isOpen, vehicle.vin, snapshotVer, reportKnownAliasesToKV]);
+
+  const handleRefreshScan = async () => {
+    if (!vehicle.vin || vehicle.isScanning) return;
+    // Force re-read MQTT snapshot (no API calls — reads cached MQTT data)
+    await getDeepScanData(vehicle.vin, true);
   };
 
   const handleExport = () => {
@@ -750,6 +570,11 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
                   {groupedData.length} groups
                 </span>
               )}
+              {vehicle.isScanning && filteredData.length > 0 && (
+                <span className="text-[10px] text-green-600 bg-green-100 px-1.5 py-0.5 rounded font-bold animate-pulse">
+                  Updating...
+                </span>
+              )}
             </div>
           </div>
           <button
@@ -797,9 +622,10 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
             </svg>
           </div>
           <button
-            onClick={handleRefresh}
+            onClick={handleRefreshScan}
             disabled={vehicle.isScanning}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-bold rounded-lg shadow-md transition-all active:scale-95"
+            title="Refresh MQTT telemetry snapshot"
           >
             <svg
               className={`w-4 h-4 ${vehicle.isScanning ? "animate-spin" : ""}`}
@@ -814,7 +640,9 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               />
             </svg>
-            <span className="hidden sm:inline">Full Scan</span>
+            <span className="hidden sm:inline">
+              {vehicle.isScanning ? "Refreshing..." : "Refresh"}
+            </span>
           </button>
           <button
             onClick={handleExport}
@@ -841,7 +669,27 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-0 custom-scrollbar bg-gray-50/30">
-          {vehicle.isScanning ? (
+          {filteredData.length === 0 && !vehicle.isScanning ? (
+            <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+              <svg
+                className="w-12 h-12 mb-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <p className="font-medium">
+                {searchTerm ? "No results found" : "No telemetry data yet"}
+              </p>
+              <p className="text-xs mt-1">MQTT data will appear as it arrives</p>
+            </div>
+          ) : filteredData.length === 0 && vehicle.isScanning ? (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
               <div className="relative">
                 <div className="w-16 h-16 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
@@ -861,13 +709,13 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
               </div>
               <div className="text-center">
                 <p className="text-gray-900 font-bold">
-                  Deep Scanning Vehicle...
+                  Loading telemetry...
                 </p>
                 <p className="text-gray-500 text-xs mt-1">
-                  Fetching all telemetry data from 19 categories
+                  Waiting for MQTT data...
                 </p>
                 <p className="text-[10px] text-gray-400 mt-2">
-                  Battery, Charging, Doors, Climate, Location, Safety...
+                  Data will appear progressively as it arrives
                 </p>
               </div>
             </div>
@@ -997,26 +845,7 @@ export default function TelemetryDrawer({ isOpen, onClose }) {
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-              <svg
-                className="w-12 h-12 mb-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <p className="font-medium">
-                {searchTerm ? "No results found" : "No telemetry data yet"}
-              </p>
-            </div>
-          )}
+          ) : null}
         </div>
 
         {/* Footer */}

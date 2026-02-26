@@ -25,7 +25,7 @@ const NavItem = ({ id, label, icon, active, onClick }) => (
   </button>
 );
 
-export default function MobileNav({ activeTab, onTabChange }) {
+export default function MobileNav({ activeTab, onTabChange, onScan }) {
   const tabs = [
     {
       id: "vehicle",
@@ -105,6 +105,26 @@ export default function MobileNav({ activeTab, onTabChange }) {
         ))}
       </div>
 
+      {/* Separate Circle Button for Deep Scan */}
+      <button
+        onClick={onScan}
+        className="w-16 h-16 flex items-center justify-center bg-white/40 backdrop-blur-3xl border border-white/50 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.12)] active:scale-90 active:bg-blue-100/50 transition-all duration-300 group"
+        title="Deep Scan"
+      >
+        <svg
+          className="w-8 h-8 text-indigo-600 group-hover:text-indigo-800 transition-colors"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+          />
+        </svg>
+      </button>
     </div>
   );
 }

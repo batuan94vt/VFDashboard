@@ -1,6 +1,6 @@
 # System Data Flow Documentation
 
-This document describes the current implementation flow for Authentication, Vehicle Discovery, and Telemetry Retrieval in the VinFast Dashboard.
+This document describes the current implementation flow for Authentication, Vehicle Discovery, and Telemetry in the VinFast Dashboard.
 
 ## 1. Authentication Flow (Login)
 
@@ -13,20 +13,22 @@ The authentication process utilizes the **Serverless Proxy** to communicate with
     - It forwards the request to `https://vin3s.au.auth0.com/oauth/token` (or regional equivalent).
 4.  **Token Issuance**:
     - Auth0 returns an `access_token` and `refresh_token` to the Proxy.
-    - The Proxy returns these tokens to the Browser.
-5.  **Session Storage**:
-    - The Frontend `api.js` saves the `access_token` and `refresh_token` to `localStorage`.
+    - The Proxy sets both tokens as **HttpOnly cookies** (`secure` flag auto-detects localhost for local dev).
+5.  **Session Ready**:
+    - The Frontend receives a success response (no tokens in JS — they live in HttpOnly cookies).
     - The `AuthStore` is updated, and the UI reveals the dashboard.
 
 ## 2. Token Refresh Flow
 
-The system implements a strategy to handle expired Access Tokens (`401 Unauthorized`).
+The system implements automatic token refresh to handle expired Access Tokens.
 
-1.  **Trigger**: An API call (e.g., `getVehicles`) returns a `401`.
+1.  **Trigger**: An API call (e.g., `getVehicles`) returns a `401 Unauthorized`.
 2.  **Refresh Logic**:
     - `api.js` intercepts the 401.
-    - _(Current Buffer)_: It currently logs the user out to force re-authentication (Simplest secure path).
-    - _Future_: Implement `/api/refresh` proxy to exchange `refresh_token` for new `access_token`.
+    - Calls `POST /api/refresh` which exchanges the `refresh_token` cookie for a new `access_token`.
+    - The Proxy sets the new token as an HttpOnly cookie.
+    - The original request is retried automatically.
+3.  **Fallback**: If the refresh itself fails (e.g., expired `refresh_token`), the user is logged out.
 
 ## 3. Vehicle Discovery Flow
 
@@ -38,28 +40,46 @@ Once authenticated, the system discovers the user's vehicles.
 3.  **Forwarding**: The Proxy forwards the request to the VinFast API.
 4.  **Response**: The list of vehicles is returned to the Frontend.
 
-## 4. Telemetry Retrieval Flow
+## 4. MQTT Telemetry Flow (Live Data)
 
-This involves mapping human-readable "Aliases" to technical "Device IDs".
+All vehicle telemetry is delivered via **MQTT over WebSocket** through AWS IoT Core. There is no REST polling — MQTT is the sole real-time data source. A one-time core alias registration triggers the T-Box to begin pushing data.
 
-### A. Alias Mapping (Client-side)
+### A. MQTT Connection & Core Registration
 
-Unlike the old backend approach, the mapping logic now lives in the **Frontend** (`src/utils/telemetryMapper.js`).
+1.  **DashboardController** mounts, sets MQTT callbacks, then calls `fetchUser()` and `fetchVehicles()` in parallel.
+2.  `fetchVehicles()` → `switchVehicle(vin)` → `mqttClient.connect(vin)`.
+3.  The MQTT client authenticates via AWS Cognito (federated with Auth0 token).
+4.  Subscribes to `/mobile/{VIN}/push` for live telemetry messages.
+5.  **`onConnected` callback** → `api.registerResources(vin)` registers ~46 core aliases via `POST list_resource` (1 API call, ~100ms). This triggers the T-Box to begin pushing telemetry data.
 
-1.  **Config**: The Frontend loads `CORE_TELEMETRY_ALIASES` from `src/config/vinfast.js`.
-2.  **Map Lookup**: It looks up the IDs in `src/config/static_alias_map.json` bundled with the app.
+### B. Data Ingestion
 
-### B. Fetching Telemetry
+1.  **MQTT Message**: VinFast pushes telemetry updates to the subscribed topic.
+2.  **Parsing**: `mqttClient._onMessage()` → `parseTelemetry()` maps raw `deviceKey` (e.g., "34183/1/9") to friendly keys (e.g., `battery_level`).
+3.  **Store Update**: `updateFromMqtt(vin, parsed, rawMessages)` merges data into `vehicleStore` and `vehicleCache`.
+4.  **isRefreshing cleared**: On first MQTT message arrival for the active VIN.
+5.  **Reactivity**: UI components re-render automatically via nanostores subscriptions.
 
-1.  **Frontend Poll**: `VehicleStore` calls `api.getTelemetry(vin)`.
-2.  **Construct Payload**: The browser constructs the JSON payload of IDs.
-3.  **Proxy Request**: It sends a POST request to `/api/proxy/ccaraccessmgmt/api/v1/telemetry/app/ping` with the payload.
-4.  **IP Distribution**:
-    - The Proxy (on Cloudflare/Vercel) uses a rotating IP from the edge network to send the request to VinFast. **This prevents Rate Limiting.**
-5.  **Raw Data Response**: VinFast returns the current values.
+### C. Deep Scan (TelemetryDrawer)
 
-### C. Data Translation
+When the user opens the Deep Scan drawer:
 
-1.  **Mapping Back**: `telemetryMapper.parseTelemetry()` translates the raw `deviceKey` (e.g., "34183/1/9") back to a friendly key (e.g., `battery_level`).
-2.  **Logic Fixes**: Conversion of units, booleans, and fallback paths (e.g., for SOH or T-Box versions) happens here.
-3.  **UI Update**: The data is merged into the `vehicleStore`, triggering React component re-renders.
+1.  `getDeepScanData(vin)` reads the MQTT snapshot (0 API calls — instant).
+2.  If snapshot is empty, waits up to 5s with exponential backoff for MQTT data to arrive.
+3.  Data is grouped and displayed progressively as MQTT data arrives.
+4.  `mqttSnapshotVersion` atom triggers re-reads when new data comes in.
+
+### D. KV Known-Good Aliases (Crowdsourced)
+
+After the user discovers aliases with data, the dashboard reports them to Cloudflare KV:
+
+- **POST** `/api/known-aliases` — merges new aliases into KV (additive, deduped).
+- **GET** `/api/known-aliases?model=VF9&year=2024` — read cached aliases.
+- Future users of the same model benefit from shared alias metadata.
+
+### E. Credential Lifecycle
+
+- **AWS Cognito credentials**: 1-hour TTL (fixed by AWS `GetCredentialsForIdentity`).
+- **WebSocket URL**: Signed for 24 hours.
+- **Client caching**: Credentials cached with 5-minute buffer before expiry.
+- **MQTT reconnect**: Automatic on disconnect; `onConnected` callback fires.

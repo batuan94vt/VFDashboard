@@ -20,7 +20,7 @@ The VinFast Connected Car API uses the X-HASH authentication header to protect t
 | --------------- | ------------------------------ | ---------------------------------------------- |
 | `X-HASH`        | HMAC-SHA256 signature (Base64) | `Xit6wzaC0Bpcsi6QTTT/dBY2hcN+jvHiKkEJu3EwNRI=` |
 | `X-TIMESTAMP`   | Unix timestamp (milliseconds)  | `1769189217462`                                |
-| `X-VIN-CODE`    | Vehicle Identification Number  | `RLLVXXXXXXXXXXXXX71`                          |
+| `X-VIN-CODE`    | Vehicle Identification Number  | `RLLVXXXXXXXXXXXXX`                          |
 | `Authorization` | Bearer token from Auth0 login  | `Bearer eyJhbG...`                             |
 
 ### Algorithm
@@ -44,7 +44,7 @@ X-HASH = Base64(HMAC-SHA256(secretKey, message))
 Input:
   method = "POST"
   path = "/ccarcharging/api/v1/stations/search"
-  vin = "RLLVXXXXXXXXXXXXX71"
+  vin = "RLLVXXXXXXXXXXXXX"
   timestamp = "1769029742000"
 
 Message (lowercase):
@@ -91,7 +91,7 @@ const timestamp = Date.now();
 const xHash = generateXHash(
   "POST",
   "/api/v1/telemetry/list_resource",
-  "RLLVXXXXXXXXXXXXX71",
+  "RLLVXXXXXXXXXXXXX",
   timestamp,
 );
 ```
@@ -213,7 +213,7 @@ X-HASH-2 is the second signing layer, implemented in native code (`libsecure.so`
 | `X-HASH`            | HMAC-SHA256 signature (Base64)        | `u5B0xgcHtqNpGNST5Sw53ds5PvMhb/ApCUgZQ1glAh0=` |
 | `X-HASH-2`          | Native HMAC-SHA256 signature (Base64) | `j6M6tf1Tpr+jldxYN5QHNIKXFe5X3vD6yrr+rTbAcVI=` |
 | `X-TIMESTAMP`       | Unix timestamp (milliseconds)         | `1771033156922`                                |
-| `X-VIN-CODE`        | Vehicle Identification Number         | `RLLVXXXXXXXXXXXXX71`                          |
+| `X-VIN-CODE`        | Vehicle Identification Number         | `RLLVXXXXXXXXXXXXX`                          |
 | `Authorization`     | Bearer token from Auth0 login         | `Bearer eyJhbG...`                             |
 | `x-device-platform` | **Must be `android`** (see notes)     | `android`                                      |
 
@@ -247,7 +247,7 @@ X-HASH-2 = Base64(HMAC-SHA256("ConnectedCar@6521", message))
 ```
 Input:
   platform = "android"
-  vinCode = "RLLVXXXXXXXXXXXXX71"
+  vinCode = "RLLVXXXXXXXXXXXXX"
   identifier = "vfdashboard-community-edition"
   path = "/ccaraccessmgmt/api/v1/telemetry/app/ping"
   method = "POST"
