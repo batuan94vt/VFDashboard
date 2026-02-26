@@ -35,11 +35,11 @@ This project aims to build a modern, high-performance web dashboard for VinFast 
 #### API Layer: Serverless Proxy (Astro API Routes)
 
 - **Role**: Reverse Proxy for VinFast API & Auth.
-- **Infrastructure**: Runs on **Cloudflare Workers** (Edge) or Vercel Serverless.
+- **Infrastructure**: Primary on **Cloudflare Pages** (Edge), with 6 backup proxies (4x Vercel Serverless + 2x CF Workers) for 429 failover.
 - **Responsibilities**:
   - **CORS Resolution**: Proxies requests from the browser to VinFast APIs to bypass CORS restrictions.
-  - **IP Distribution**: Leverages Edge Network IP pools (Cloudflare/AWS) to prevent single-IP rate limiting from VinFast.
-  - **Security**: Hides Auth0 Client interaction details (optional) and sanitized headers.
+  - **429 Failover**: On rate-limit, shuffles through backup proxies (different egress IPs) until success. See [Proxy Failover docs](./api/PROXY_FAILOVER.md).
+  - **Security**: Hides Auth0 Client interaction details, X-HASH signing secrets, and sanitized headers.
 
 #### External Integrations (Client-side)
 
@@ -62,22 +62,37 @@ graph TD
     User[User Browser]
 
     subgraph "Edge Network (Cloudflare Pages)"
-        Astro[Astro Server (SSR)]
+        Astro[Astro Server SSR]
         Proxy[Serverless Proxy /api/*]
+    end
+
+    subgraph "Backup Proxies (429 Failover)"
+        Vercel[Vercel Proxies x4 SG/TK]
+        CFWorker[CF Workers x2]
     end
 
     subgraph "External Cloud Services"
         VF_Auth[VinFast Auth0]
         VF_API[VinFast Connected Car API]
+        AWS_IoT[AWS IoT Core MQTT Broker]
+        AWS_Cognito[AWS Cognito Identity]
         OpenMeteo[Open-Meteo API]
         Nominatim[Nominatim OSM]
     end
 
     User -- "HTTPS / HTML" --> Astro
     User -- "API Requests /api/*" --> Proxy
+    User -- "WSS (MQTT real-time)" --> AWS_IoT
 
-    Proxy -- "Forward Request" --> VF_Auth
-    Proxy -- "Forward Request" --> VF_API
+    Proxy -- "Direct" --> VF_Auth
+    Proxy -- "Direct" --> VF_API
+    Proxy -. "429 failover (random)" .-> Vercel
+    Proxy -. "429 failover (random)" .-> CFWorker
+    Vercel -- "Forward" --> VF_Auth
+    Vercel -- "Forward" --> VF_API
+    CFWorker -- "Forward" --> VF_Auth
+    CFWorker -- "Forward" --> VF_API
+    Proxy -- "Get Temp AWS Credentials" --> AWS_Cognito
 
     User -- "Direct Fetch" --> OpenMeteo
     User -- "Direct Fetch" --> Nominatim
@@ -90,7 +105,7 @@ graph TD
 ### 3.1 Performance
 
 - **NFR-PERF-01**: **Time to Interactive (TTI)** must be < 1.0 second on 4G networks.
-- **NFR-PERF-02**: Dashboard data freshness must be within 60 seconds.
+- **NFR-PERF-02**: Dashboard data freshness: **real-time via MQTT** (sub-second), with REST polling fallback every 30 minutes.
 
 ### 3.2 Security
 

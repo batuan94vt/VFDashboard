@@ -30,9 +30,9 @@ export default function DashboardController({ vin: initialVin }) {
     // but onTelemetryUpdate/onConnected are null so messages are ignored
     // and registerResources is never called.
     const mqttClient = getMqttClient();
-    mqttClient.onTelemetryUpdate = (mqttVin, parsed) => {
+    mqttClient.onTelemetryUpdate = (mqttVin, parsed, rawMessages) => {
       if (isMounted.current) {
-        updateFromMqtt(mqttVin, parsed);
+        updateFromMqtt(mqttVin, parsed, rawMessages);
       }
     };
     mqttClient.onConnected = (connectedVin) => {

@@ -13,7 +13,6 @@ import MobileNav from "./MobileNav";
 import ErrorBoundary from "./ErrorBoundary";
 
 // Lazy load heavy components
-const TelemetryDrawer = React.lazy(() => import("./TelemetryDrawer"));
 const ChargingHistoryDrawer = React.lazy(
   () => import("./ChargingHistoryDrawer"),
 );
@@ -21,12 +20,7 @@ const ChargingHistoryDrawer = React.lazy(
 export default function DashboardApp({ vin: initialVin }) {
   const { isInitialized, vin } = useStore(vehicleStore);
   const [activeTab, setActiveTab] = useState("vehicle");
-  const [isTelemetryDrawerOpen, setIsTelemetryDrawerOpen] = useState(false);
   const [isChargingDrawerOpen, setIsChargingDrawerOpen] = useState(false);
-
-  const handleOpenTelemetry = () => {
-    setIsTelemetryDrawerOpen(true);
-  };
 
   const handleOpenCharging = () => {
     setIsChargingDrawerOpen(true);
@@ -43,10 +37,7 @@ export default function DashboardApp({ vin: initialVin }) {
       ) : (
         <div className="fixed inset-0 w-full h-[100dvh] z-0 md:static md:h-auto md:max-w-7xl md:min-w-[1280px] md:mx-auto p-4 md:space-y-6 pb-28 md:pb-4 animate-in fade-in duration-700 flex flex-col overflow-hidden md:overflow-visible">
           <header className="flex-shrink-0 relative z-[60]">
-            <VehicleHeader
-              onOpenTelemetry={handleOpenTelemetry}
-              onOpenCharging={handleOpenCharging}
-            />
+            <VehicleHeader onOpenCharging={handleOpenCharging} />
           </header>
 
           <main className="flex-1 flex flex-col md:grid md:grid-cols-12 gap-6 min-h-0">
@@ -115,16 +106,9 @@ export default function DashboardApp({ vin: initialVin }) {
           <MobileNav
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            onScan={handleOpenTelemetry}
           />
 
           <Suspense fallback={null}>
-            {isTelemetryDrawerOpen && (
-              <TelemetryDrawer
-                isOpen={isTelemetryDrawerOpen}
-                onClose={() => setIsTelemetryDrawerOpen(false)}
-              />
-            )}
             {isChargingDrawerOpen && (
               <ChargingHistoryDrawer
                 isOpen={isChargingDrawerOpen}

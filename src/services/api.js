@@ -9,6 +9,9 @@ import { parseTelemetry } from "../utils/telemetryMapper";
 
 const SESSION_KEY = "vf_session";
 
+// Buffer before token expiry to trigger proactive refresh (5 minutes)
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
 class VinFastAPI {
   constructor() {
     this.region = DEFAULT_REGION;
@@ -18,6 +21,10 @@ class VinFastAPI {
     this.userId = null;
     this.aliasMappings = staticAliasMap;
     this.rememberMe = false;
+    this.tokenExpiresAt = 0; // Tracks when access_token expires
+
+    // Dedup: only one refresh request in-flight at a time
+    this._refreshPromise = null;
 
     // We assume logged in if metadata cookie exists, but real check is API call
     this.isLoggedIn = false;
@@ -130,6 +137,7 @@ class VinFastAPI {
         userId: this.userId,
         region: this.region,
         rememberMe: this.rememberMe,
+        tokenExpiresAt: this.tokenExpiresAt || 0,
         timestamp: Date.now(),
         expiresAt: Date.now() + ttlMs,
       };
@@ -151,6 +159,7 @@ class VinFastAPI {
         this.vin = data.vin;
         this.userId = data.userId;
         this.rememberMe = !!data.rememberMe;
+        this.tokenExpiresAt = data.tokenExpiresAt || 0;
         if (data.expiresAt && data.expiresAt <= Date.now()) {
           this.clearSession();
           return;
@@ -159,14 +168,18 @@ class VinFastAPI {
 
         this.isLoggedIn = true; // Optimistic
 
-        // We rely on background refresh or next API call to validate session
-        // Proactive Refresh "Renew Mechanism"
-        this.refreshAccessToken().catch((e) =>
-          console.warn("Background refresh failed", e),
-        );
+        // Smart Refresh: only call Auth0 if token is close to expiry or unknown
+        const now = Date.now();
+        const needsRefresh =
+          !this.tokenExpiresAt ||
+          this.tokenExpiresAt <= now + TOKEN_REFRESH_BUFFER_MS;
+
+        if (needsRefresh) {
+          this.refreshAccessToken().catch((e) =>
+            console.warn("Background refresh failed", e),
+          );
+        }
       } else {
-        // Check for vf_region cookie if vf_session is missing (maybe new login flow)
-        // But for now vf_session is our metadata source.
         this.isLoggedIn = false;
       }
     } catch (e) {
@@ -185,6 +198,7 @@ class VinFastAPI {
     this.vin = null;
     this.userId = null;
     this.rememberMe = false;
+    this.tokenExpiresAt = 0;
     this.isLoggedIn = false;
   }
 
@@ -229,16 +243,29 @@ class VinFastAPI {
         body: JSON.stringify(payload),
       });
 
+      const result = await response.json();
+
+      // Log auth routing info
+      if (result._authLog) {
+        const log = result._authLog;
+        if (log.length > 1 || response.status === 429) {
+          const icon = response.status === 429 ? "🔴" : log.length > 1 ? "🟡" : "✓";
+          console.group(`${icon} Auth0 login — ${log.length} attempt(s), final: ${response.status}`);
+          log.forEach((entry) => {
+            const color = entry.status === 429 ? "color:#ef4444" : entry.status < 400 ? "color:#4ade80" : "color:#f59e0b";
+            const prefix = entry.status !== 429 && entry.status < 400 ? "✓" : "✗";
+            console.log(`%c  ${prefix} ${entry.via}%c → ${entry.status} (${entry.ms || 0}ms)`, color + ";font-weight:bold", "color:#9ca3af");
+          });
+          console.groupEnd();
+        } else if (log.length === 1) {
+          console.log(`%c✓ Auth0 login%c → direct (${log[0]?.ms || 0}ms)`, "color:#4ade80;font-weight:bold", "color:#9ca3af");
+        }
+      }
+
       if (!response.ok) {
         let errorMessage = "An unexpected error occurred. Please try again.";
-        try {
-          const errorData = await response.json();
-          // Use message from server if it's safe/clean, otherwise fallback based on status
-          if (errorData && errorData.message) {
-            errorMessage = errorData.message;
-          }
-        } catch {
-          // JSON parse failed, stick to status mapping
+        if (result && result.message) {
+          errorMessage = result.message;
         }
 
         if (response.status === 401) {
@@ -256,7 +283,10 @@ class VinFastAPI {
         throw new Error(errorMessage);
       }
 
-      await response.json(); // Consume body
+      // Store token expiry from server for smart refresh
+      if (result.tokenExpiresAt) {
+        this.tokenExpiresAt = result.tokenExpiresAt;
+      }
 
       this.isLoggedIn = true;
       this.saveSession();
@@ -269,6 +299,20 @@ class VinFastAPI {
   }
 
   async refreshAccessToken() {
+    // Dedup: if a refresh is already in-flight, reuse the same promise
+    if (this._refreshPromise) {
+      return this._refreshPromise;
+    }
+
+    this._refreshPromise = this._doRefresh();
+    try {
+      return await this._refreshPromise;
+    } finally {
+      this._refreshPromise = null;
+    }
+  }
+
+  async _doRefresh() {
     try {
       const response = await fetch("/api/refresh", {
         method: "POST",
@@ -280,10 +324,14 @@ class VinFastAPI {
       });
 
       if (response.ok) {
-        this.saveSession(); // Update metadata cookie expiration
+        const result = await response.json();
+        // Update token expiry from server response
+        if (result.tokenExpiresAt) {
+          this.tokenExpiresAt = result.tokenExpiresAt;
+        }
+        this.saveSession();
         return true;
       } else {
-        // console.warn("Refresh token failed:", await response.text());
         return false;
       }
     } catch (e) {
@@ -298,20 +346,64 @@ class VinFastAPI {
 
     let response = await fetch(url, options);
 
+    // Log proxy routing info from server headers
+    this._logProxyRoute(url, response);
+
     if (response.status === 401) {
       console.warn("Received 401. Trying to refresh token...");
       const refreshed = await this.refreshAccessToken();
       if (refreshed) {
-        // Retry logic: Browser will automatically attach new Cookies to the next request
         response = await fetch(url, options);
+        this._logProxyRoute(url, response);
       } else {
-        // Refresh failed, likely session expired
         this.clearSession();
         window.location.href = "/login";
         throw new Error("Session expired");
       }
     }
+
+    // Note: 429 failover is handled server-side in the proxy ([...path].js)
+    // via BACKUP_PROXY_URL env var. No client-side fallback needed since
+    // access_token is in HttpOnly cookies (not accessible to client JS).
+
     return response;
+  }
+
+  _logProxyRoute(url, response) {
+    try {
+      const route = response.headers.get("x-proxy-route");
+      const logRaw = response.headers.get("x-proxy-log");
+      if (!route && !logRaw) return;
+
+      const shortUrl = url.replace(/\?.*$/, "").replace("/api/proxy/", "");
+      const status = response.status;
+
+      if (logRaw) {
+        const log = JSON.parse(logRaw);
+        if (log.length <= 1 && status < 400) {
+          // Direct success — minimal log
+          console.log(`%c✓ ${shortUrl}%c → direct (${log[0]?.ms || 0}ms)`, "color:#4ade80;font-weight:bold", "color:#9ca3af");
+        } else {
+          // Failover happened — detailed log
+          const icon = status === 429 ? "🔴" : "🟡";
+          console.group(`${icon} ${shortUrl} — ${log.length} attempt(s), final: ${status}`);
+          log.forEach((entry, i) => {
+            const statusColor = entry.status === 429 ? "color:#ef4444" : entry.status < 400 ? "color:#4ade80" : "color:#f59e0b";
+            const prefix = i === log.length - 1 && entry.status !== 429 ? "✓" : "✗";
+            console.log(
+              `%c  ${prefix} ${entry.via}%c → ${entry.status} (${entry.ms || 0}ms)`,
+              statusColor + ";font-weight:bold",
+              "color:#9ca3af"
+            );
+          });
+          console.groupEnd();
+        }
+      } else if (route) {
+        console.log(`[Proxy] ${shortUrl} via ${route} → ${status}`);
+      }
+    } catch {
+      // Ignore logging errors
+    }
   }
 
   async getVehicles() {

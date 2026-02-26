@@ -13,7 +13,7 @@
 >
 > ✅ **X-HASH + X-HASH-2**: Dual-layer API signing is working on all telemetry endpoints.\
 > ✅ **MQTT Live Telemetry**: Real-time data streaming via AWS IoT Core (battery, doors, tires, location, speed).\
-> ✅ **Deployed**: Running on Cloudflare Pages with server-side proxy.\
+> ✅ **Deployed**: Running on Cloudflare Pages with multi-proxy failover for 429 rate limiting.\
 > ✅ **SOH Data**: State of Health battery data is available again in the API response.\
 > 📚 **Documentation**: [API Endpoints](./docs/api/API_ENDPOINTS.md) | [X-HASH Technical Docs](./docs/api/HASH_ANALYSIS_SUMMARY.md) | [Reverse Engineering Report](./docs/api/REVERSE_ENGINEERING_REPORT.md) | [MQTT Telemetry](./docs/api/MQTT_TELEMETRY.md)\
 > 🌐 **Bilingual docs**: English at `docs/api/`, Vietnamese at `docs/api/vi/`
@@ -38,7 +38,7 @@ Our goal is to create a UI that matches the premium quality of the car itself—
 ## 🛠 Tech Stack
 
 - **Core**: React (Vite/Astro), Tailwind CSS, Nanostores.
-- **API**: Serverless Proxy (Astro SSR) for CORS & Rate Limiting.
+- **API**: Serverless Proxy (Astro SSR) with multi-proxy 429 failover (Cloudflare Pages + Vercel + CF Workers).
 - **Integration**: Official/Reverse-Engineered VinFast API + MQTT over WebSocket (AWS IoT Core).
 
 ## 🚀 Quick Start
@@ -133,6 +133,10 @@ We want to share a few thoughts from the community, with the utmost respect and 
 ### On API Security Changes
 
 We've noticed frequent changes to API authentication mechanisms (X-HASH, X-HASH-2, endpoint restructuring, etc.). We completely understand the need for security, and we respect that. However, we want to be transparent: with modern AI-assisted development tools (such as GPT-series models and AI coding agents), investigating and adapting to these changes typically takes **no more than 15-30 minutes**. The security-through-obscurity approach does not effectively prevent determined third-party access -- it only slows down the community temporarily while consuming valuable engineering resources on VinFast's side.
+
+### On MQTT Telemetry
+
+The current **MQTT real-time telemetry system via AWS IoT Core is stable and working well**. It is a solid foundation that the official app and third-party integrations can reliably build upon. We hope this connection protocol will remain unchanged in the near future.
 
 ### A Better Path Forward: Developer Community
 

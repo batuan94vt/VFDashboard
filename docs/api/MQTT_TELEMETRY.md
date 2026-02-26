@@ -77,7 +77,8 @@ The `MqttTelemetryClient` class handles:
 
 - **SigV4 URL Signing**: Signs the WebSocket URL using Web Crypto API (zero dependencies)
 - **Connection Management**: Connect, disconnect, auto-reconnect with fresh signed URLs
-- **Endpoint Failover**: Rotates between primary and fallback MQTT endpoints
+- **Connection Reuse**: On vehicle switch, reuses existing connection (topic swap only, no reconnect)
+- **Subscription Tracking**: `subscribedVins` / `subscribedTopics` Sets for restore after reconnect
 - **Heartbeat**: Publishes to `/vehicles/{VIN}/push/connected/heartbeat` every 120 seconds
 - **Message Parsing**: Converts incoming MQTT messages to telemetry data via `parseTelemetry()`
 
@@ -102,7 +103,7 @@ The built-in `mqtt.js` reconnection is **disabled** (`reconnectPeriod: 0`) becau
 - SigV4 signing requires async Web Crypto API calls
 - A fresh signed URL is needed for each reconnection attempt
 
-Instead, `_scheduleReconnect()` handles reconnection manually with a 5-second delay, signing a fresh URL each time.
+Instead, `_scheduleReconnect()` handles reconnection manually with **exponential backoff** (5s → 10s → 20s → 40s → ... max 60s), signing a fresh URL each time. The attempt counter resets on successful connect.
 
 ### 3. MQTT Store
 
@@ -153,7 +154,6 @@ Displays MQTT connection status:
 MQTT_CONFIG = {
   vn: {
     endpoint: "prod.iot.connected-car.vinfast.vn",
-    fallbackEndpoint: "a192815p17rdy4-ats.iot.ap-southeast-1.amazonaws.com",
     region: "ap-southeast-1",
     cognitoPoolId: "ap-southeast-1:c6537cdf-92dd-4b1f-99a8-9826f153142a",
     cognitoLoginProvider: "vin3s.au.auth0.com",
@@ -163,9 +163,7 @@ MQTT_CONFIG = {
 };
 ```
 
-**Endpoints**:
-- Primary: `prod.iot.connected-car.vinfast.vn` (VinFast custom domain)
-- Fallback: `a192815p17rdy4-ats.iot.ap-southeast-1.amazonaws.com` (Direct AWS IoT ATS endpoint)
+**Endpoint**: `prod.iot.connected-car.vinfast.vn` (VinFast custom domain → AWS IoT Core `ap-southeast-1`)
 
 ---
 
@@ -290,6 +288,32 @@ This step is essential -- without it, the Cognito identity does not have IoT per
 ### "Native WS close" with code 1006
 - **Cause**: Abnormal WebSocket closure (no close frame). Common with network changes or server-side disconnection.
 - **Fix**: Auto-reconnect handles this. If persistent, check endpoint accessibility.
+
+### Debug MQTT key discovery (local cache + live sample)
+
+Use this in browser console after deep scan has run at least once:
+
+```js
+// Show current cached keys + live sample keys cho tất cả VIN đã thấy
+window.__vfMqttTelemetry.buildMqttTelemetryInspectorReport();
+
+// Show only cho 1 VIN (ví dụ: RLLV2CWA5PH705671)
+window.__vfMqttTelemetry.buildMqttTelemetryInspectorReport(
+  "RLLV2CWA5PH705671",
+);
+
+// Xóa cache key của VIN trước khi re-run deep scan
+window.__vfMqttTelemetry.clearMqttTelemetryCatalogForVin(
+  "RLLV2CWA5PH705671",
+);
+```
+
+`__vfMqttTelemetry` trả về:
+- `catalogKeys`: danh sách key đã cache cho VIN (key dạng `objectId|instanceId|resourceId`)
+- `snapshotKeys`: key đang có trong dữ liệu MQTT live của session hiện tại
+- `snapshotCount`: tổng số bản ghi live đang giữ trong bộ nhớ
+
+Sau lần deep scan đầu tiên, các lần gọi tiếp sẽ ưu tiên `catalogKeys` để giảm lần request.
 
 ---
 

@@ -262,6 +262,293 @@ const locationEnrichState = new Map<
   { lat: number; lon: number; lastAttemptAt: number }
 >();
 
+type MqttTelemetryCatalogEntry = {
+  keys: string[];
+  lastUpdated: number;
+};
+
+const mqttRawTelemetryByVin = new Map<string, Map<string, any>>();
+const mqttTelemetryCatalog = new Map<string, MqttTelemetryCatalogEntry>();
+const MQTT_TELEMETRY_CATALOG_STORAGE_KEY = "vf-mqtt-telemetry-catalog:v1";
+const MQTT_TELEMETRY_CATALOG_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+const MQTT_DEEP_SCAN_REGISTER_BATCH_SIZE = 24;
+const MQTT_DEEP_SCAN_RETRY_ROUNDS = 3;
+const MQTT_DEEP_SCAN_RETRY_DELAY_MS = 700;
+const MIN_DEEP_SCAN_CACHE_ITEMS = 200;
+const MQTT_DEEP_SCAN_CACHE_FULL_RETRY_RATIO = 0.6;
+const sleepMs = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+const loadMqttTelemetryCatalog = (): void => {
+  if (typeof window === "undefined") return;
+  if (mqttTelemetryCatalog.size > 0) return;
+
+  try {
+    const raw = window.localStorage.getItem(MQTT_TELEMETRY_CATALOG_STORAGE_KEY);
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw) as Record<string, MqttTelemetryCatalogEntry>;
+    const now = Date.now();
+
+    Object.entries(parsed || {}).forEach(([vin, entry]) => {
+      const keys = Array.isArray(entry?.keys) ? entry.keys : [];
+      const lastUpdated =
+        typeof entry?.lastUpdated === "number" ? entry.lastUpdated : now;
+      const isFresh = now - lastUpdated <= MQTT_TELEMETRY_CATALOG_TTL_MS;
+      if (!vin || !keys.length || !isFresh) return;
+      mqttTelemetryCatalog.set(vin, {
+        keys: [...new Set(keys.map((k) => String(k)))],
+        lastUpdated,
+      });
+    });
+  } catch (error) {
+    console.warn("Failed to load MQTT telemetry catalog", error);
+  }
+};
+
+const persistMqttTelemetryCatalog = () => {
+  if (typeof window === "undefined") return;
+
+  try {
+    const payload = JSON.stringify(
+      Object.fromEntries(
+        [...mqttTelemetryCatalog.entries()].map(([vin, entry]) => [
+          vin,
+          {
+            keys: entry.keys,
+            lastUpdated: entry.lastUpdated,
+          },
+        ]),
+      ),
+    );
+    window.localStorage.setItem(MQTT_TELEMETRY_CATALOG_STORAGE_KEY, payload);
+  } catch (error) {
+    console.warn("Failed to persist MQTT telemetry catalog", error);
+  }
+};
+
+const setCachedTelemetryKeys = (vin: string, keys: Iterable<string>) => {
+  if (!vin) return;
+
+  loadMqttTelemetryCatalog();
+  mqttTelemetryCatalog.set(vin, {
+    keys: [...new Set(keys)].sort(),
+    lastUpdated: Date.now(),
+  });
+  persistMqttTelemetryCatalog();
+};
+
+const getCachedTelemetryKeys = (vin: string): string[] => {
+  if (!vin) return [];
+
+  loadMqttTelemetryCatalog();
+  const entry = mqttTelemetryCatalog.get(vin);
+  if (!entry || !entry.keys.length) return [];
+  const now = Date.now();
+  if (now - entry.lastUpdated > MQTT_TELEMETRY_CATALOG_TTL_MS) return [];
+  return entry.keys;
+};
+
+const clearCachedTelemetryCatalog = (vin?: string) => {
+  if (vin) {
+    mqttTelemetryCatalog.delete(vin);
+    persistMqttTelemetryCatalog();
+    return;
+  }
+
+  mqttTelemetryCatalog.clear();
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(MQTT_TELEMETRY_CATALOG_STORAGE_KEY);
+  }
+};
+
+const normalizeFieldNumber = (value: any, fallback = "0") => {
+  if (value === null || value === undefined || value === "") return fallback;
+  const normalized = Number.parseInt(String(value), 10);
+  return Number.isFinite(normalized) ? String(normalized) : fallback;
+};
+
+const normalizeTelemetryKey = (item: any) => {
+  if (!item || typeof item !== "object") return "";
+
+  const deviceKey = String(item.deviceKey || "").trim().replace(/\//g, "_");
+  if (deviceKey) {
+    const rawParts = deviceKey.split("_").filter(Boolean);
+    if (rawParts.length === 3) {
+      const objectId = normalizeFieldNumber(rawParts[0], "");
+      const instanceId = normalizeFieldNumber(rawParts[1], "0");
+      const resourceId = normalizeFieldNumber(rawParts[2], "");
+      if (objectId && resourceId) {
+        return `${objectId}|${instanceId}|${resourceId}`;
+      }
+    }
+  }
+
+  const objectId = item.objectId ?? item.object_id ?? item.oid;
+  const instanceId = item.instanceId ?? item.instance_id ?? item.iid ?? "0";
+  const resourceId = item.resourceId ?? item.resource_id ?? item.rid;
+  if (objectId && resourceId) {
+    return `${normalizeFieldNumber(objectId, "")}|${normalizeFieldNumber(
+      instanceId,
+      "0",
+    )}|${normalizeFieldNumber(resourceId, "")}`;
+  }
+
+  return "";
+};
+
+const ingestMqttTelemetry = (vin: string, messages: any[]) => {
+  if (!vin || !Array.isArray(messages) || messages.length === 0) return;
+  loadMqttTelemetryCatalog();
+
+  let bucket = mqttRawTelemetryByVin.get(vin);
+  if (!bucket) {
+    bucket = new Map<string, any>();
+    mqttRawTelemetryByVin.set(vin, bucket);
+  }
+
+  const discoveredKeys = new Set<string>();
+
+  const now = Date.now();
+  for (const item of messages) {
+    const key = normalizeTelemetryKey(item);
+    if (!key) continue;
+
+    const [objectId, instanceId, resourceId] = key.split("|");
+    const deviceKey = `${objectId}_${instanceId}_${resourceId}`;
+    if (!item || typeof item !== "object") continue;
+
+    bucket.set(key, {
+      ...item,
+      objectId,
+      instanceId,
+      resourceId,
+      deviceKey,
+      lastUpdated: item.timestamp || now,
+    });
+
+    discoveredKeys.add(key);
+  }
+
+  if (discoveredKeys.size > 0) {
+    const existing = mqttRawTelemetryByVin.get(vin);
+    const finalKeys = new Set<string>(discoveredKeys);
+    if (existing) {
+      existing.forEach((_item, key) => finalKeys.add(key));
+    }
+    setCachedTelemetryKeys(vin, finalKeys);
+  }
+
+};
+
+const getRawMqttTelemetry = (vin: string) => {
+  const bucket = mqttRawTelemetryByVin.get(vin);
+  if (!bucket) return [];
+  return [...bucket.values()];
+};
+
+  const getCachedRequestObjects = (vin: string, aliases: any[]) => {
+  const cachedKeys = getCachedTelemetryKeys(vin);
+  if (!cachedKeys.length) return [];
+
+  const cachedSet = new Set(cachedKeys);
+
+  const toAliasKey = (item: any) => {
+    const objectId = normalizeFieldNumber(
+      item?.devObjID ?? item?.devObjId ?? item?.objectId ?? item?.object_id ??
+        item?.objID ?? item?.objId ?? item?.object,
+      "",
+    );
+    const instanceId = normalizeFieldNumber(
+      item?.devObjInstID ?? item?.devObjInstId ?? item?.instanceId ??
+        item?.instance_id ?? item?.iid ?? item?.instance,
+      "0",
+    );
+    const resourceId = normalizeFieldNumber(
+      item?.devRsrcID ?? item?.devRsrcId ?? item?.resourceId ??
+        item?.resource_id ?? item?.rsrcID ?? item?.rsrcId ?? item?.resource,
+      "",
+    );
+
+    if (!objectId || !resourceId) return "";
+    return `${objectId}|${instanceId}|${resourceId}`;
+  };
+
+  return aliases.filter((alias) => cachedSet.has(toAliasKey(alias)));
+};
+
+const buildRequestObjects = (items: any[]) => {
+  const getAliasField = (item: any, keys: string[]) => {
+    const normalizedKeys = Object.keys(item || {}).reduce((acc: any, key) => {
+      acc[key.toLowerCase()] = item[key];
+      return acc;
+    }, {});
+
+    for (const key of keys) {
+      if (item && item[key] != null && item[key] !== "") return item[key];
+      const lower = key.toLowerCase();
+      if (normalizedKeys[lower] != null && normalizedKeys[lower] !== "") {
+        return normalizedKeys[lower];
+      }
+    }
+    return "";
+  };
+
+  const out = new Map<string, { objectId: string; instanceId: string; resourceId: string }>();
+  for (const item of items) {
+    const objectId = getAliasField(item, [
+      "objectId",
+      "object_id",
+      "devObjID",
+      "devObjId",
+      "objID",
+      "objId",
+      "object",
+    ]);
+    const instanceId = getAliasField(item, [
+      "instanceId",
+      "instance_id",
+      "instance",
+      "devObjInstID",
+      "devObjInstId",
+      "iid",
+    ]);
+    const resourceId = getAliasField(item, [
+      "resourceId",
+      "resource_id",
+      "devRsrcID",
+      "devRsrcId",
+      "rsrcID",
+      "rsrcId",
+      "devRsrc",
+    ]);
+
+    if (!objectId || !resourceId) {
+      continue;
+    }
+
+    const key = `${objectId}|${instanceId ?? "0"}|${resourceId}`;
+    if (!out.has(key)) {
+      out.set(key, {
+        objectId: String(objectId),
+        instanceId: String(instanceId ?? "0"),
+        resourceId: String(resourceId),
+      });
+    }
+  }
+
+  return [...out.values()];
+};
+
+const chunkList = <T>(items: T[], size: number): T[][] => {
+  if (!size || size <= 0) return [items];
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size));
+  }
+  return out;
+};
+
 const LOCATION_ENRICH_TTL_MS = 3 * 60 * 1000;
 const LOCATION_ENRICH_DISTANCE_M = 500;
 const LOCATION_ENRICH_TIMEOUT_MS = 5000;
@@ -808,10 +1095,12 @@ export const fetchFullTelemetry = async (vin: string, force = false) => {
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   const lastFetch = current.fullTelemetryTimestamps[vin] || 0;
+  const cachedData = current.fullTelemetryData[vin] || [];
   if (
     !force &&
     now - lastFetch < CACHE_DURATION &&
-    current.fullTelemetryData[vin]
+    Array.isArray(cachedData) &&
+    cachedData.length >= MIN_DEEP_SCAN_CACHE_ITEMS
   ) {
     console.log("Using cached full telemetry for", vin);
     return;
@@ -875,9 +1164,34 @@ export const fetchFullTelemetry = async (vin: string, force = false) => {
       "CAMPAIGN",
     ];
 
+    const getAliasField = (item: any, keys: string[]) => {
+      const normalizedKeys = Object.keys(item || {}).reduce((acc: any, key) => {
+        acc[key.toLowerCase()] = item[key];
+        return acc;
+      }, {});
+
+      for (const key of keys) {
+        if (item && item[key] != null && item[key] !== "") return item[key];
+        const lower = key.toLowerCase();
+        if (normalizedKeys[lower] != null && normalizedKeys[lower] !== "")
+          return normalizedKeys[lower];
+      }
+      return "";
+    };
+
     const candidates = resources.filter((r: any) => {
-      const name = (r.resourceName || "").toUpperCase();
-      const alias = (r.alias || "").toUpperCase();
+      const name = String(
+        getAliasField(r, ["resourceName", "resource_name", "name", "deviceName"]),
+      ).toUpperCase();
+      const alias = String(
+        getAliasField(r, [
+          "alias",
+          "aliasName",
+          "alias_name",
+          "displayName",
+          "resourceAlias",
+        ]),
+      ).toUpperCase();
       return interestingKeywords.some(
         (keyword) => name.includes(keyword) || alias.includes(keyword),
       );
@@ -907,17 +1221,109 @@ export const fetchFullTelemetry = async (vin: string, force = false) => {
     vehicleStore.setKey("vehicleCache", updatedCache);
     // ------------------------------------------
 
-    // 3. Map to Request Objects
-    const requestObjects = resources
-      .filter((item: any) => item.devObjID)
-      .map((item: any) => ({
-        objectId: item.devObjID,
-        instanceId: item.devObjInstID || "0",
-        resourceId: item.devRsrcID || "0",
-      }));
+    const candidateObjects = buildRequestObjects(candidates);
+    const fallbackObjects = buildRequestObjects(resources);
+    const cachedRequestObjects = buildRequestObjects(
+      getCachedRequestObjects(vin, resources),
+    );
+    const useCachedRequest = cachedRequestObjects.length >= MIN_DEEP_SCAN_CACHE_ITEMS;
+    const requestedObjects = useCachedRequest
+      ? cachedRequestObjects
+      : candidateObjects.length > 0
+        ? candidateObjects
+        : fallbackObjects;
 
-    // 4. Fetch Raw Telemetry
-    const rawData = await api.getRawTelemetry(vin, requestObjects);
+    if (useCachedRequest) {
+      console.log(
+        `Deep Scan: Using cached request objects for ${vin}: ${requestedObjects.length}`,
+      );
+    }
+
+    if (requestedObjects.length > 0) {
+      const requestChunks = chunkList(
+        requestedObjects,
+        MQTT_DEEP_SCAN_REGISTER_BATCH_SIZE,
+      );
+      for (let i = 0; i < requestChunks.length; i += 1) {
+        const chunk = requestChunks[i];
+        await api.registerResources(vin, chunk);
+        if (i + 1 < requestChunks.length) {
+          await sleepMs(MQTT_DEEP_SCAN_RETRY_DELAY_MS);
+        }
+      }
+    }
+
+    const mqttSnapshot = getRawMqttTelemetry(vin);
+    let readySnapshot = mqttSnapshot;
+    if (!readySnapshot.length && requestedObjects.length > 0) {
+      for (let retry = 0; retry < MQTT_DEEP_SCAN_RETRY_ROUNDS; retry += 1) {
+        await sleepMs(MQTT_DEEP_SCAN_RETRY_DELAY_MS);
+        readySnapshot = getRawMqttTelemetry(vin);
+        if (readySnapshot.length > 0) break;
+      }
+    }
+
+    const shouldRetryWithFullAlias =
+      useCachedRequest &&
+      fallbackObjects.length > 0 &&
+      (readySnapshot.length === 0 ||
+        readySnapshot.length <
+          Math.max(
+            MIN_DEEP_SCAN_CACHE_ITEMS,
+            Math.floor(
+              requestedObjects.length * MQTT_DEEP_SCAN_CACHE_FULL_RETRY_RATIO,
+            ),
+          ));
+
+    if (shouldRetryWithFullAlias) {
+      console.log(
+        `Deep Scan: Cached request insufficient for ${vin} (${readySnapshot.length}/${requestedObjects.length}), retrying with full alias list (${fallbackObjects.length})`,
+      );
+      const fallbackChunks = chunkList(
+        fallbackObjects,
+        MQTT_DEEP_SCAN_REGISTER_BATCH_SIZE,
+      );
+      for (let i = 0; i < fallbackChunks.length; i += 1) {
+        const chunk = fallbackChunks[i];
+        await api.registerResources(vin, chunk);
+        if (i + 1 < fallbackChunks.length) {
+          await sleepMs(MQTT_DEEP_SCAN_RETRY_DELAY_MS);
+        }
+      }
+
+      for (let retry = 0; retry < MQTT_DEEP_SCAN_RETRY_ROUNDS; retry += 1) {
+        await sleepMs(MQTT_DEEP_SCAN_RETRY_DELAY_MS);
+        readySnapshot = getRawMqttTelemetry(vin);
+        if (readySnapshot.length > 0) break;
+      }
+    }
+
+    if (!readySnapshot.length) {
+      console.warn(
+        `Deep Scan: No MQTT telemetry snapshot yet for ${vin}. Will keep existing cache and return.`,
+      );
+      if (current.fullTelemetryData[vin]?.length) {
+        return;
+      }
+      console.warn(
+        `Deep Scan: No MQTT telemetry snapshot yet for ${vin}. Open dashboard after receiving MQTT messages`,
+      );
+      return;
+    }
+    let rawData = readySnapshot;
+
+      console.log(
+        `[Deep Scan] MQTT snapshot mode: using ${rawData.length} items for ${vin}`,
+        {
+          requested: requestedObjects.length,
+          snapshot: readySnapshot.length,
+        },
+    );
+
+    if (!rawData.length) {
+      console.warn("Deep scan returned no data", { vin });
+      return;
+    }
 
     // 5. Update Store & Cache
     const newFullData = { ...current.fullTelemetryData, [vin]: rawData };
@@ -1009,8 +1415,14 @@ export const fetchVehicles = async (): Promise<string | null> => {
 
 // --- MQTT Live Updates ---
 
-export const updateFromMqtt = (vin: string, parsedData: Partial<VehicleState>) => {
+export const updateFromMqtt = (
+  vin: string,
+  parsedData: Partial<VehicleState>,
+  rawMessages?: any[],
+) => {
+  ingestMqttTelemetry(vin, rawMessages || []);
   if (!vin || !parsedData || Object.keys(parsedData).length === 0) return;
+
   updateVehicleData({ ...parsedData, vin } as Partial<VehicleState>);
 
   const latitude = toCoordNumber(parsedData.latitude);
@@ -1019,3 +1431,85 @@ export const updateFromMqtt = (vin: string, parsedData: Partial<VehicleState>) =
     void enrichLocationAndWeather(vin, latitude, longitude, false);
   }
 };
+
+export const getCachedMqttTelemetryCatalog = () => {
+  loadMqttTelemetryCatalog();
+  return Object.fromEntries(
+    [...mqttTelemetryCatalog.entries()].map(([vin, entry]) => ({
+      ...entry,
+      vin,
+    })),
+  ) as Record<string, MqttTelemetryCatalogEntry>;
+};
+
+export const getMqttTelemetryCatalogForVin = (vin: string) => {
+  if (!vin) return [];
+  return getCachedTelemetryKeys(vin);
+};
+
+export const clearMqttTelemetryCatalogForVin = (vin?: string) => {
+  clearCachedTelemetryCatalog(vin);
+  if (vin) {
+    mqttRawTelemetryByVin.delete(vin);
+  } else {
+    mqttRawTelemetryByVin.clear();
+  }
+};
+
+export const getLiveMqttKeysForVin = (vin: string): string[] => {
+  if (!vin) return [];
+  return getCachedTelemetryKeys(vin);
+};
+
+export const getLiveMqttSnapshotForVin = (vin: string) => {
+  if (!vin) return [];
+  const snapshot = getRawMqttTelemetry(vin);
+  return snapshot.map((item: any) => ({
+    key: normalizeTelemetryKey(item),
+    deviceKey: item?.deviceKey || item?.device_key || item?.path || "",
+    value: item?.value ?? item?.Value,
+    raw: item,
+  }));
+};
+
+export const buildMqttTelemetryInspectorReport = (vin?: string) => {
+  if (vin) {
+    return {
+      vin,
+      catalogKeys: getLiveMqttKeysForVin(vin),
+      snapshotKeys: getLiveMqttSnapshotForVin(vin).map((item) => item.key),
+      snapshotCount: getRawMqttTelemetry(vin).length,
+    };
+  }
+
+  const catalog = getCachedMqttTelemetryCatalog();
+  const all: Record<
+    string,
+    { catalogKeys: string[]; snapshotKeys: string[]; snapshotCount: number }
+  > = {};
+
+  Object.keys(catalog).forEach((cachedVin) => {
+    const snapshot = getLiveMqttSnapshotForVin(cachedVin);
+    all[cachedVin] = {
+      catalogKeys: catalog[cachedVin]?.keys || [],
+      snapshotKeys: snapshot.map((item) => item.key),
+      snapshotCount: snapshot.length,
+    };
+  });
+
+  return all;
+};
+
+const isProductionMode =
+  typeof process !== "undefined" && process.env?.NODE_ENV === "production";
+
+if (!isProductionMode && typeof window !== "undefined") {
+  (window as any).__vfMqttTelemetry = {
+    getMqttTelemetryCatalog: getCachedMqttTelemetryCatalog,
+    getMqttTelemetryCatalogForVin,
+    getLiveMqttKeysForVin,
+    getLiveMqttSnapshotForVin,
+    buildMqttTelemetryInspectorReport,
+    clearMqttTelemetryCatalogForVin,
+  };
+}

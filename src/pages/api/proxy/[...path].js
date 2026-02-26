@@ -229,26 +229,107 @@ export const ALL = async ({ request, params, cookies, locals }) => {
     init.body = requestBody;
   }
 
+  // --- Direct fetch → on 429, immediately failover to shuffled backup proxies ---
+
+  let lastResponse = null;
+  let lastData = null;
+  const proxyLog = []; // Track all attempts for client-side debugging
+
+  // Phase 1: Direct to VinFast (no retry — fail fast)
   try {
+    const t0 = Date.now();
     console.log(`[Proxy] → ${request.method} ${targetUrl}`);
-    const response = await fetch(targetUrl, init);
-    const data = await response.text();
+    const fetchInit = { method: init.method, headers: { ...proxyHeaders } };
+    if (requestBody) fetchInit.body = requestBody;
 
-    console.log(
-      `[Proxy] ← ${response.status} (${data.length} bytes) for ${request.method} /${apiPath}`,
-    );
-    if (response.status >= 400) {
-      console.log(`[Proxy] Error body: ${data.substring(0, 500)}`);
-    }
-
-    return new Response(data, {
-      status: response.status,
-      headers: { "Content-Type": "application/json" },
-    });
+    lastResponse = await fetch(targetUrl, fetchInit);
+    lastData = await lastResponse.text();
+    const elapsed = Date.now() - t0;
+    proxyLog.push({ via: "direct", status: lastResponse.status, ms: elapsed });
+    console.log(`[Proxy] ← direct ${lastResponse.status} (${elapsed}ms)`);
   } catch (e) {
     console.error(`[Proxy Error] ${request.method} /${apiPath}:`, e);
     return new Response(JSON.stringify({ error: "Internal Proxy Error" }), {
       status: 500,
+      headers: { "Content-Type": "application/json" },
     });
   }
+
+  // Phase 2: If 429, immediately try backup proxies in random order
+  if (lastResponse.status === 429) {
+    const runtimeEnv = locals?.runtime?.env || import.meta.env || {};
+
+    const envKeys = [
+      "BACKUP_PROXY_URL", "BACKUP_PROXY_URL_2", "BACKUP_PROXY_URL_3",
+      "BACKUP_PROXY_URL_4", "BACKUP_PROXY_URL_5", "BACKUP_PROXY_URL_6",
+    ];
+    const backupUrls = envKeys
+      .map((k) => runtimeEnv[k] || (typeof process !== "undefined" ? process.env[k] : undefined))
+      .filter(Boolean);
+
+    // Fisher-Yates shuffle — distribute load evenly across backups
+    for (let i = backupUrls.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [backupUrls[i], backupUrls[j]] = [backupUrls[j], backupUrls[i]];
+    }
+
+    for (const backupUrl of backupUrls) {
+      try {
+        const backupTarget = `${backupUrl.replace(/\/$/, "")}/api/vf-proxy/${apiPath}${searchStr ? "?" + searchStr : ""}`;
+        // Extract short label from URL for logging
+        const label = new URL(backupUrl).hostname.replace(".vercel.app", "").replace(".workers.dev", "");
+        console.log(`[Proxy] 429 — failover to: ${label}`);
+
+        const backupInit = {
+          method: request.method,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        };
+        if (vinHeader) backupInit.headers["x-vin-code"] = vinHeader;
+        if (playerHeader) backupInit.headers["x-player-identifier"] = playerHeader;
+        if (requestBody) backupInit.body = requestBody;
+
+        const t0 = Date.now();
+        const backupResponse = await fetch(backupTarget, backupInit);
+        const backupData = await backupResponse.text();
+        const elapsed = Date.now() - t0;
+
+        proxyLog.push({ via: label, status: backupResponse.status, ms: elapsed });
+        console.log(`[Proxy] ← ${label} ${backupResponse.status} (${elapsed}ms)`);
+
+        if (backupResponse.status !== 429) {
+          return new Response(backupData, {
+            status: backupResponse.status,
+            headers: {
+              "Content-Type": "application/json",
+              "X-Proxy-Route": label,
+              "X-Proxy-Log": JSON.stringify(proxyLog),
+            },
+          });
+        }
+      } catch (e) {
+        proxyLog.push({ via: backupUrl, status: "error", error: e.message });
+        console.warn(`[Proxy] Backup failed:`, e.message);
+      }
+    }
+  }
+
+  const servedBy = proxyLog.length > 1 ? `direct+${proxyLog.length - 1} backups (all 429)` : "direct";
+  console.log(
+    `[Proxy] ← ${lastResponse.status} (${lastData.length} bytes) for ${request.method} /${apiPath} [${servedBy}]`,
+  );
+  if (lastResponse.status >= 400) {
+    console.log(`[Proxy] Error body: ${lastData.substring(0, 500)}`);
+  }
+
+  return new Response(lastData, {
+    status: lastResponse.status,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Proxy-Route": "direct",
+      "X-Proxy-Log": JSON.stringify(proxyLog),
+    },
+  });
 };

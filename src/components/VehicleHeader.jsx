@@ -151,7 +151,7 @@ const WeatherIcon = ({ temp, code }) => {
   );
 };
 
-export default function VehicleHeader({ onOpenTelemetry, onOpenCharging }) {
+export default function VehicleHeader({ onOpenCharging }) {
   const vehicle = useStore(vehicleStore);
   const refreshTimer = useStore(refreshTimerStore);
   const mqtt = useStore(mqttStore);
@@ -315,7 +315,7 @@ export default function VehicleHeader({ onOpenTelemetry, onOpenCharging }) {
           </div>
         </button>
 
-        {/* Tools Dropdown (Deep Scan + Charging History) */}
+        {/* Tools Dropdown (Charging History) */}
         <div className="relative hidden md:block">
           <button
             onClick={() => setToolsOpen(!toolsOpen)}
@@ -358,38 +358,6 @@ export default function VehicleHeader({ onOpenTelemetry, onOpenCharging }) {
                 onClick={() => setToolsOpen(false)}
               />
               <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden">
-                <button
-                  onClick={() => {
-                    setToolsOpen(false);
-                    onOpenTelemetry();
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-50 transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-                    <svg
-                      className="w-4 h-4 text-indigo-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">Deep Scan</p>
-                    <p className="text-[10px] text-gray-400">
-                      Full telemetry data
-                    </p>
-                  </div>
-                </button>
-
-                <div className="h-px bg-gray-50 mx-3"></div>
-
                 <button
                   onClick={() => {
                     setToolsOpen(false);
