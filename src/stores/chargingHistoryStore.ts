@@ -443,6 +443,50 @@ export function setFilterMonth(year: number, month: number) {
   setFilter("month", year, month);
 }
 
+/** Max new sessions possible within CACHE_TTL (24h) — keeps revalidation lightweight */
+const REVALIDATE_SIZE = 50;
+
+/**
+ * Stale-while-revalidate: fetch newest sessions in the background.
+ * If new ones found, merge into cache. No full refetch needed.
+ */
+async function backgroundRevalidate(vin: string, cached: VinCache) {
+  try {
+    const json = await api.getChargingHistory(0, REVALIDATE_SIZE, vin);
+    const freshSessions = extractSessions(json);
+    const freshTotal = extractTotalRecords(json, freshSessions.length);
+
+    // Fast lookup by session key
+    const existingKeys = new Set(
+      cached.sessions.map((s) => s.id || `${getSessionTime(s)}`),
+    );
+
+    const newSessions = freshSessions.filter(
+      (s) => !existingKeys.has(s.id || `${getSessionTime(s)}`),
+    );
+
+    if (newSessions.length === 0) {
+      setCachedData(vin, cached.sessions, cached.totalRecords);
+      return;
+    }
+
+    const merged = normalizeIdSet([...newSessions, ...cached.sessions])
+      .sort((a, b) => getSessionTime(b) - getSessionTime(a));
+
+    console.log(
+      `%c[Charging] +${newSessions.length} new session(s) merged`,
+      "color:#f59e0b;font-weight:bold",
+    );
+
+    setCachedData(vin, merged, freshTotal);
+
+    const st = chargingHistoryStore.get();
+    applyFilter(merged, st.filterMode, st.selectedYear, st.selectedMonth);
+  } catch {
+    // Silent fail — cached data remains visible
+  }
+}
+
 /**
  * Fetch ALL charging sessions for a specific VIN.
  * @param vinCode — explicit VIN to fetch for (required; do not rely on api.vin)
@@ -465,7 +509,8 @@ export async function fetchChargingSessions(vinCode?: string, force = false) {
   const currentLoadedVin = chargingHistoryStore.get().loadedVin;
   const vinChanged = currentLoadedVin !== vin;
 
-  // Check per-VIN cache
+  // Check per-VIN cache — stale-while-revalidate:
+  // Show cached data instantly, then background-check for new sessions
   const cached = hydrateOrGetCached(vin);
   if (!force && cached && Date.now() - cached.fetchedAt < CACHE_TTL) {
     const cacheAge = ((Date.now() - cached.fetchedAt) / 1000 / 60).toFixed(1);
@@ -493,6 +538,9 @@ export async function fetchChargingSessions(vinCode?: string, force = false) {
         st.selectedMonth,
       );
     }
+
+    // Background revalidation: fetch page 0 to check for new sessions
+    backgroundRevalidate(vin, cached);
     return;
   }
 
