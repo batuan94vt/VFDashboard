@@ -271,7 +271,7 @@ export default function Login({ bgImage }) {
         {/* Trademark Disclaimer */}
         <p className="relative text-center text-[10px] leading-relaxed text-white/40 px-4">
           Not affiliated with, endorsed, or sponsored by VinFast.
-          VinFast is a registered trademark of VinFast Trading and Production JSC.
+          VinFast is a registered trademark of VinFast Commercial and Services Trading LLC.
         </p>
 
         {/* Footer: Github - Text - VF9 Club */}
