@@ -265,7 +265,7 @@ export default function Login({ bgImage }) {
             target="_blank"
             rel="noopener noreferrer"
             className="font-semibold text-white hover:text-blue-300 underline underline-offset-2 transition-colors"
-          >VF9 Club Vietnam</a>.
+          >ANH EM VF9 - VF9 CLUB</a>.
         </p>
 
         {/* Footer: Github - Text - VF9 Club */}
