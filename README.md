@@ -12,10 +12,25 @@
 > **VFDashboard** ban đầu là công cụ nhỏ phục vụ nhóm anh em chủ xe VF9, không ngờ được lan truyền rộng. Xin chia sẻ một số điểm để anh em yên tâm:
 >
 > - **Không chính thức, không liên quan đến VinFast.** Website chỉ sử dụng tài khoản VinFast của bạn để kết nối và lấy dữ liệu — tương tự cách app chính thức hoạt động. Hệ thống VinFast chạy trên AWS, bảo mật tốt.
+> - **Không thu thập, không lưu trữ bất kỳ dữ liệu nào.** Toàn bộ thông tin (bao gồm mật khẩu) chỉ được chuyển tiếp đến server VinFast/Auth0 qua HTTPS và **không bao giờ được ghi lại** trên hệ thống. Mã nguồn hoàn toàn công khai — ai cũng có thể kiểm chứng.
 > - **Thông tin mang tính tham khảo.** Dữ liệu được lấy trực tiếp từ VinFast nhưng không có giá trị chính thức để làm việc với hãng.
-> - **Phi lợi nhuận, không scam.** Toàn bộ mã nguồn công khai tại đây. Anh em lo lắng về bảo mật có thể tự clone về máy chạy ở local (`npm install && npm run dev`) và dùng AI để đánh giá code.
+> - **Phi lợi nhuận, không scam, không giả mạo.** Dự án luôn ghi rõ là "unofficial" và không hề mạo danh VinFast. Anh em lo lắng về bảo mật có thể tự clone về máy chạy ở local (`npm install && npm run dev`) và dùng AI để đánh giá code.
 > - **Link duy nhất:** [**dashboard.vf9.club**](https://dashboard.vf9.club) — không có link nào khác. Khuyến khích chạy local để trải nghiệm ổn định nhất.
 > - **Lỗi không kết nối được?** Do server VinFast giới hạn tần suất truy cập (rate limit) từ proxy, không phải do hệ thống quá tải.
+>
+> ---
+>
+> #### ⚠️ Về việc website bị report "phishing"
+>
+> Team VinFast đã report website lên Cloudflare với nội dung **không đúng sự thật**, cụ thể:
+>
+> - ❌ *"Mật khẩu được lưu dưới dạng plaintext"* → **Sai.** Hệ thống chỉ chuyển tiếp thông tin đăng nhập đến Auth0 (hệ thống xác thực của chính VinFast) qua HTTPS, **không ghi log, không lưu trữ**. Toàn bộ mã nguồn công khai — ai cũng có thể kiểm tra.
+> - ❌ *"Website giả mạo VinFast"* → **Sai.** Dự án luôn ghi rõ "unofficial", không dùng logo VinFast, không mạo danh, và ghi rõ "not affiliated with VinFast" ngay trên trang này.
+> - ❌ *"Thu thập dữ liệu người dùng trái phép"* → **Sai.** Không có dữ liệu nào được lưu trên server. Mọi thông tin chỉ nằm trên trình duyệt của bạn (HttpOnly cookies), giống hệt cách app chính thức hoạt động.
+>
+> Chúng tôi hơi thất vọng vì VinFast chọn cách report thay vì liên hệ trực tiếp. Dự án này xuất phát từ đam mê xe điện và mong muốn bổ sung những tính năng mà app chính thức chưa có — hoàn toàn vì cộng đồng.
+>
+> ---
 >
 > Giao lưu cùng tác giả: [**ANH EM VF9 - VF9 CLUB**](https://www.facebook.com/groups/706124277686588/)
 >
@@ -146,57 +161,33 @@ Selected improvements from community forks are periodically reviewed and backpor
 
 We warmly welcome all VinFast owners and technology enthusiasts to collaborate and help improve the public dashboard experience.
 
-## 💬 An Open Letter to VinFast's Development Team
+## 💬 An Open Letter to VinFast
 
-Dear VinFast Engineering Team,
+Dear VinFast Team,
 
-First of all -- **thank you** for building great electric vehicles. We love our VinFast cars, and this project exists because we are passionate owners who want to get the most out of our vehicles.
+This project was born out of genuine love for VinFast vehicles. We are passionate owners who wanted features the official app doesn't yet provide — real-time battery telemetry, tire pressure history, charging analytics, and a digital twin experience. This is not competition; this is **free R&D from your most loyal customers**.
 
-We want to share a few thoughts from the community, with the utmost respect and constructive spirit:
+### On the Recent Takedown Report
 
-### On API Security Changes
+We were disappointed to learn that VinFast reported this project with claims that are **factually incorrect**:
 
-We've noticed frequent changes to API authentication mechanisms (X-HASH, X-HASH-2, endpoint restructuring, etc.). We completely understand the need for security, and we respect that. However, we want to be transparent: with modern AI-assisted development tools (such as GPT-series models and AI coding agents), investigating and adapting to these changes typically takes **no more than 15-30 minutes**. The security-through-obscurity approach does not effectively prevent determined third-party access -- it only slows down the community temporarily while consuming valuable engineering resources on VinFast's side.
+- ❌ *"credentials stored in plaintext"* — **False.** The proxy forwards credentials to Auth0 over HTTPS and **never logs or stores them**. The entire codebase is open-source — anyone can verify this. See [Issue #68](https://github.com/VF9-Club/VFDashboard/issues/68) for a detailed technical discussion.
+- ❌ *"fake application impersonating VinFast"* — **False.** The project has always been clearly labeled as **unofficial and community-built**. It does not use VinFast branding, does not claim affiliation, and states "not affiliated with VinFast" prominently in this README.
+- ❌ *"illegally stored user data"* — **False.** No user data is stored on any server. All data flows directly between the user's browser and VinFast's own APIs. Session tokens are stored in the user's browser only (HttpOnly cookies), exactly as the official app does.
 
-### On MQTT Telemetry
+We would have welcomed a direct conversation before a takedown report based on inaccurate claims.
 
-The current **MQTT real-time telemetry system via AWS IoT Core is stable and working well**. It is a solid foundation that the official app and third-party integrations can reliably build upon. We hope this connection protocol will remain unchanged in the near future.
+### A Better Path Forward
 
-### A Better Path Forward: Developer Community
+Many car manufacturers (Tesla, BMW, Mercedes, Hyundai/Kia) have recognized that third-party apps **increase customer satisfaction and brand loyalty**. Instead of an adversarial approach, we hope VinFast will consider:
 
-Instead of an ongoing cycle of API changes and community workarounds, we believe there is a **much more exciting opportunity**: **embrace the developer community**.
+1. **A public API program** (even read-only) with proper OAuth and rate limits
+2. **Developer documentation** for vehicle telemetry endpoints
+3. **Engaging with the community** rather than suppressing it
 
-Many car manufacturers (Tesla, BMW, Mercedes, Hyundai/Kia) have recognized that third-party apps and integrations **increase customer satisfaction and brand loyalty**. Owners who build custom dashboards, home automation integrations, and fleet management tools are your most engaged and loyal customers.
+We built this in the open, with good intentions. We still hope to work **with** VinFast, not around them.
 
-Here are some features the community would love to build -- features that would make VinFast vehicles even more attractive:
-
-- **Home automation integrations** (Home Assistant, Google Home, Apple HomeKit)
-- **Fleet management dashboards** for businesses with multiple VinFast vehicles
-- **Advanced trip planning** with charging station routing optimized for VinFast EVs
-- **Custom widgets and watch complications** for real-time vehicle status
-- **Energy management** integrations with solar panels and home batteries
-- **Proactive charging notifications** -- alert owners before the battery is fully charged, with Live Activities (iOS) and Live Updates (Android) on the lock screen and Dynamic Island so drivers can monitor charging status at a glance (with an option to filter DC-only, since AC charging doesn't incur idle fees)
-- **Community-driven safety features** like shared road hazard reporting
-- **Accessibility tools** for owners with different needs
-
-### Why This Project Exists
-
-VFDashboard was born out of genuine love for VinFast vehicles, combined with a desire for features that the official app does not yet provide. The official app is good and improving -- but the community can move faster on niche features that matter to power users. This is not competition; this is **free R&D and free marketing** from your most passionate customers.
-
-### Our Proposal
-
-We would be thrilled if VinFast considered:
-
-1. **A public API program** (even read-only) with proper API keys and rate limits
-2. **Developer documentation** for vehicle telemetry and control endpoints
-3. **A developer community forum** where enthusiasts can collaborate with VinFast engineers
-4. **OAuth-based third-party app authorization** so owners can safely grant access to apps they trust
-
-This would transform the current situation from an adversarial dynamic into a **collaborative ecosystem** that benefits everyone -- VinFast, owners, and the broader EV community.
-
-We are building in the open, with good intentions. We hope to work **with** you, not around you.
-
-With respect and admiration,\
+With respect,\
 **The VFDashboard Community**
 
 ---
