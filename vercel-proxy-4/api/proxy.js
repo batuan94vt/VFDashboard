@@ -109,6 +109,13 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Security: block path traversal and ensure target stays on VinFast domain
+    if (apiPath.includes("..") || apiPath.includes("//") || apiPath.startsWith("/")) {
+      res.writeHead(400, { ...CORS_HEADERS, "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid API path" }));
+      return;
+    }
+
     // Security: only allow known VinFast API paths
     const isAllowed = ALLOWED_PATH_PREFIXES.some((p) => apiPath.startsWith(p));
     if (!isAllowed) {

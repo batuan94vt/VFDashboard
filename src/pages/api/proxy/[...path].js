@@ -113,6 +113,14 @@ function generateXHash2({
 export const ALL = async ({ request, params, cookies, locals }) => {
   const apiPath = params.path;
 
+  // Security: block path traversal and ensure target stays on VinFast domain
+  if (apiPath.includes("..") || apiPath.includes("//") || apiPath.startsWith("/")) {
+    return new Response(JSON.stringify({ error: "Invalid API path" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const isAllowedPath = ALLOWED_PATH_PREFIXES.some((prefix) =>
     apiPath.startsWith(prefix),
   );
